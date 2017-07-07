@@ -251,7 +251,6 @@ class QHM_Migrator
 	*/
 	public function import()
 	{
-//		header("Content-Type: text/plain;");
 		$site_url = site_url();
 		
 		// カテゴリなどを処理するための postの属性を入れるためのもの
@@ -431,10 +430,6 @@ class QHM_Migrator
 						'post_status'		=> 'publish',
 						'post_category'		=> $cat_id
 					);
-
-//					var_dump($matches);
-//					var_dump($post_param);
-//					exit;
 					
 					wp_insert_post( $post_param );
 					$cnt_post++;
@@ -453,8 +448,6 @@ class QHM_Migrator
 						'post_status'		=> 'publish',
 					);
 					
-//					var_dump($post_param);
-
 					wp_insert_post( $post_param );	
 					$cnt_page++;
 				}
@@ -468,7 +461,6 @@ class QHM_Migrator
 	* 指定されたファイルが登録されていなければ、登録する。
 	* 登録されていたら、何もしない。
 	* $fname = ファイル名（パスは含まない）
-	
 	* 戻り値は「ファイルのURL」
 	*/
 	private function add_media( $fname )
