@@ -251,7 +251,7 @@ class QHM_Migrator
 	*/
 	public function import()
 	{
-		header("Content-Type: text/plain;");
+//		header("Content-Type: text/plain;");
 		$site_url = site_url();
 		
 		// カテゴリなどを処理するための postの属性を入れるためのもの
