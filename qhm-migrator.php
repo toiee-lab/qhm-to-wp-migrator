@@ -436,7 +436,7 @@ class QHM_Migrator
 //					var_dump($post_param);
 //					exit;
 					
-//					wp_insert_post( $post_param );
+					wp_insert_post( $post_param );
 					$cnt_post++;
 				
 				}
@@ -455,7 +455,7 @@ class QHM_Migrator
 					
 //					var_dump($post_param);
 
-//					wp_insert_post( $post_param );	
+					wp_insert_post( $post_param );	
 					$cnt_page++;
 				}
 			}
