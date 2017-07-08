@@ -311,7 +311,7 @@ class QHM_Migrator
 			$name = hex2bin( basename($file, '.txt') );
 			
 			//ナビや設定用のページなどは、無視する
-			if( preg_match('/^(:config|:config.*|:RenameLog|InterWiki|InterWikiName|MenuAdmin|MenuBar|MenuBar2|QBlog|QBlogMenuBar|QHMAdmin|RecentChanges|SiteNavigator|SiteNavigator2)$/', $name) )
+			if( preg_match('/^(:config|:config.*|:RenameLog|InterWiki|InterWikiName|MenuAdmin|MenuBar|MenuBar2|QBlog|QBlogMenuBar|QHMAdmin|RecentChanges|SiteNavigator|SiteNavigator2|:ConvertCodeLog|RecentDeleted)$/', $name) )
 			{
 				//do nothing		
 			}
