@@ -38,9 +38,9 @@ $qhm_migrator = new QHM_Migrator();
 
 class QHM_Migrator 
 {
-	private $options;
+	var $options;
 	
-	public function __construct()
+	function __construct()
 	{	
 		$this->options = get_option( 'qm_setting', array('qhm_migrated' => '0') );
 		
@@ -64,7 +64,7 @@ class QHM_Migrator
 	/**
 	* 管理画面関係
 	*/
-    public function add_plugin_page()
+    function add_plugin_page()
     {
 		add_options_page( 'QHM移行', 'QHM移行', 'manage_options', 'qm_setting', array( $this, 'create_admin_page' ) );
     }
@@ -72,7 +72,7 @@ class QHM_Migrator
     /**
      * 設定ページの初期化を行います。
      */
-    public function page_init()
+    function page_init()
     {
 	    // 転送設定のためのもの
         register_setting( 'qm_setting', 'qm_setting', array( $this, 'sanitize' ) );
@@ -88,7 +88,7 @@ class QHM_Migrator
     /**
      * 設定ページのHTMLを出力します。
      */
-    public function create_admin_page()
+    function create_admin_page()
     {
 	    // index_qhm.php があるかをチェックします
 	    $is_exists = file_exists(ABSPATH.'index_qhm.php');
@@ -143,7 +143,7 @@ class QHM_Migrator
 		            {
 			            ?>
 			    <p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>
-			            <?
+			            <?php
 		            }
 	            ?>
 	            </form>
@@ -202,7 +202,7 @@ class QHM_Migrator
     /**
      * 入力項目(「メッセージ」)のHTMLを出力します。
      */
-    public function message_callback()
+    function message_callback()
     {
         // 値を取得
         $flag = isset( $this->options['qhm_migrated'] ) ? $this->options['qhm_migrated'] : '0';
@@ -223,7 +223,7 @@ class QHM_Migrator
      *
      * @param array $input 設定値
      */
-    public function sanitize( $input )
+    function sanitize( $input )
     {
         // DBの設定値を取得します。
         $this->options = get_option( 'qm_setting' );
@@ -249,7 +249,7 @@ class QHM_Migrator
 	/**
 	* QHMデータのインポート
 	*/
-	public function import()
+	function import()
 	{
 		$site_url = site_url();
 		
@@ -463,7 +463,7 @@ class QHM_Migrator
 	* $fname = ファイル名（パスは含まない）
 	* 戻り値は「ファイルのURL」
 	*/
-	private function add_media( $fname )
+	function add_media( $fname )
 	{
 		$upload_dir = wp_upload_dir();
 		
@@ -498,7 +498,7 @@ class QHM_Migrator
 	*/
 	
 	/* ログインしていないときは、QHMを表示する */
-	public function switch_qhm_not_login()
+	function switch_qhm_not_login()
 	{
 		if( is_user_logged_in() )
 		{
@@ -522,7 +522,7 @@ class QHM_Migrator
 	}
 	
 	/* QHMのURLへのアクセスをWordPressの固定ページへ転送する */
-	public function redirect_qhm_to_wp(){
+	function redirect_qhm_to_wp(){
 		
 		if( $_SERVER['QUERY_STRING']!='' && strpos($_SERVER['QUERY_STRING'], '=') === false )
 		{
@@ -543,10 +543,5 @@ class QHM_Migrator
 				exit;
 			}
 		}
-	}
-	
-
-	
-
-	
+	}	
 }
