@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.2
+Version: 0.3
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -24,15 +24,11 @@ Author URI: http://wpa.toiee.jp/
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-/* 課題リスト
-	
-[x] is_ssl という関数がバッティグするなー	
-	302リダイレクトを使って、一時的に転送とする。index_qhm.php に転送
-	index_qhm.php は、どうするかなー。手動設置かなー、Pluginで設置はできないからなー・・・
+if (!defined('PHP_VERSION_ID')) {
+    $version = explode('.', PHP_VERSION);
 
-2017/6/14  QHMに転送するところまでの作成でストップ
-	
-*/
+    define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
+}
 
 $qhm_migrator = new QHM_Migrator();
 
@@ -92,6 +88,10 @@ class QHM_Migrator
     {
 	    // index_qhm.php があるかをチェックします
 	    $is_exists = file_exists(ABSPATH.'index_qhm.php');
+		
+		// php のバージョンをチェックします
+	    $phpver_ok = PHP_VERSION_ID >= 50600 ? true : false;
+	    $phpver = phpversion();
 	    
         // 設定値を取得します。
         $this->options = get_option( 'qm_setting' );
@@ -115,6 +115,14 @@ class QHM_Migrator
    	        <?php } ?>
 
             <p>以下の手順で、QHMからWordPressに移行してください。</p>
+            <p><strong>環境情報</strong></p>
+            <ul>
+	            <li>PHPのバージョン : <?php echo $phpver; ?></li>
+	            <li>display_errors : <?php echo ini_get('display_errors');?></li>
+	            <li>max_execution_time : <?php echo ini_get('max_execution_time');?></li>
+	            <li>memory_limit : <?php echo ini_get('memory_limit');?></li>
+	            <li></li>
+            </ul>
 
 			<div class="card">
 	            <h3>Step1. QHMデータをインポート</h3>
@@ -129,21 +137,23 @@ class QHM_Migrator
 	            <form method="post" action="options.php">
 	            <?php
 		            
-		            if($is_exists)
+		            if(! $is_exists)
 		            {
-		                // 隠しフィールドなどを出力します(register_setting()の$option_groupと同じものを指定)。
-		                settings_fields( 'qhm_import' );
-		                // 入力項目を出力します(設定ページのslugを指定)。
-		//                do_settings_sections( 'qm_setting' );
-		                // 送信ボタンを出力します。
-		                $att = array('onclick' => 'return confirm("実行しても良いですか？");');
-		                submit_button('QHMのデータをインポートする','','','',$att);
+					    echo '<p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>';
+
+		            }
+		            if(! $phpver_ok)
+		            {
+			            echo '<strong style="color:red">PHPのバージョンが古いです。PHP5.6以上に設定してから実行してください</strong>';;
 		            }
 		            else
 		            {
-			            ?>
-			    <p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>
-			            <?php
+		                // 隠しフィールドなどを出力します(register_setting()の$option_groupと同じものを指定)。
+		                settings_fields( 'qhm_import' );
+		                // 送信ボタンを出力します。
+		                $att = array('onclick' => 'return confirm("実行しても良いですか？");');
+		                submit_button('QHMのデータをインポートする','','','',$att);
+	
 		            }
 	            ?>
 	            </form>
@@ -447,7 +457,7 @@ class QHM_Migrator
 						'post_name'			=> $name,
 						'post_status'		=> 'publish',
 					);
-					
+
 					wp_insert_post( $post_param );	
 					$cnt_page++;
 				}
@@ -460,7 +470,7 @@ class QHM_Migrator
 	/**
 	* 指定されたファイルが登録されていなければ、登録する。
 	* 登録されていたら、何もしない。
-	* $fname = ファイル名（パスは含まない）
+	* $fname = ファイル名（パスは含まない）	
 	* 戻り値は「ファイルのURL」
 	*/
 	function add_media( $fname )
