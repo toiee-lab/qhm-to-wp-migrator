@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.3
+Version: 0.4
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -73,12 +73,23 @@ class QHM_Migrator
 	    // 転送設定のためのもの
         register_setting( 'qm_setting', 'qm_setting', array( $this, 'sanitize' ) );
         add_settings_section( 'qm_setting_section_id', '', '', 'qm_setting' );
-		add_settings_field( 'qhm_migrated', '移行完了', array( $this, 'message_callback' ), 'qm_setting', 'qm_setting_section_id' );
+		add_settings_field( 'qhm_migrated', '移行完了', array( $this, 'message_callback' ), 'qm_setting', 'qm_setting_section_id' );        
         
-        
-        // インポートボタンの設置
-        register_setting( 'qhm_import', 'qhm_import', array( $this, 'import') );
-        add_settings_section( 'qhm_import_section_id', '', '', 'qhm_import' );
+        // インポートを実行する
+        if ( isset($_POST['do-qm-import']) && $_POST['do-qm-import'] )
+        {
+	        if( check_admin_referer( 'my-nonce-key', 'qm-import' ) )
+	        {
+		    	if( isset($_POST['qm-skip']) && $_POST['qm-skip'] == 'true' ) {
+			    	$skip = true;
+		    	}
+		    	else {
+			    	$skip = false;
+		    	}
+		    	
+				$this->import($skip);
+	        }
+        }
     }
  
     /**
@@ -86,6 +97,13 @@ class QHM_Migrator
      */
     function create_admin_page()
     {
+	    
+       // ユーザーが必要な権限を持つか確認する必要がある
+	   if (!current_user_can('manage_options'))
+	   {
+	   		wp_die( __('You do not have sufficient permissions to access this page.') );
+		}
+	    
 	    // index_qhm.php があるかをチェックします
 	    $is_exists = file_exists(ABSPATH.'index_qhm.php');
 		
@@ -134,7 +152,6 @@ class QHM_Migrator
 		            <li>QHMの全てのブログは、WordPressの投稿として取り込みます</li>
 		            <li>QHMのメディア（画像など）は、同じURLのものであれば、全てWordPressのメディアに取り込みます</li>
 	            </ul>
-	            <form method="post" action="options.php">
 	            <?php
 		            
 		            if(! $is_exists)
@@ -147,17 +164,20 @@ class QHM_Migrator
 			            echo '<strong style="color:red">PHPのバージョンが古いです。PHP5.6以上に設定してから実行してください</strong>';;
 		            }
 		            else
-		            {
-		                // 隠しフィールドなどを出力します(register_setting()の$option_groupと同じものを指定)。
-		                settings_fields( 'qhm_import' );
-		                // 送信ボタンを出力します。
-		                $att = array('onclick' => 'return confirm("実行しても良いですか？");');
-		                submit_button('QHMのデータをインポートする','','','',$att);
-	
+		            {			            
+?>		                
+	            <form  id="qhm-import-form" method="post" action="">
+		            <?php wp_nonce_field('my-nonce-key', 'qm-import'); ?>
+		            <p><label><input type="checkbox" name="qm-skip" value="true" checked="checked" > 既存ページをスキップする</label></p>
+		            <input type="hidden" name="do-qm-import" value="true">
+		            <p><input type="submit" value="QHMのデータをインポートする" class="button button-primary button-large" onclick='return confirm("実行しても良いですか？");' /></p>
+
+	            </form>
+<?php	
 		            }
 	            ?>
-	            </form>
-	            <p><strong>注意: 取り込みは１度だけ行なってください。もう一度行うと、既存のページを上書き保存し、変更がなくなることがあります。</strong></p>
+
+	            <p style="color: gray">お知らせ: 既存ページとは「同じURL」のページです。チェックボックスをオンにしておくと、大量のページの読み込みで途中で止まってしまった時などに便利です。何度か繰り返せば、すべてのページが読み込まれるはずです。</p>
 			</div>
             
             <br>
@@ -259,8 +279,12 @@ class QHM_Migrator
 	/**
 	* QHMデータのインポート
 	*/
-	function import()
+	function import($skip = true)
 	{
+		
+		// 実行時間の延長を試みる
+		set_time_limit(180);
+		
 		$site_url = site_url();
 		
 		// カテゴリなどを処理するための postの属性を入れるためのもの
@@ -326,144 +350,175 @@ class QHM_Migrator
 				//do nothing		
 			}
 			else // WordPressに登録する
-			{
-				// 時間を取得				
-				$ftime = filemtime($file);
-				
-				// コンテンツを取得
-				$html = file_get_contents( site_url().'/index_qhm.php?'. rawurlencode( $name ) );
-								
-				// body だけを取得
-				preg_match('/<!-- BODYCONTENTS START -->(.*?)<!-- BODYCONTENTS END -->/s', $html, $arr);
-				$body = $arr[1];
-				
-				// URLの修正
-				//    - index_qhm.php?Hogehoge を /Hogehoge/ に変更する
-				//    - index_qhm.php?FrontPage を / に変更
-				//    - index_qhm.php を / に変更
-				$ptrn = array(
-					'|"'.$site_url.'/index_qhm.php\?FrontPage"|',	
-					'|"'.$site_url.'/index_qhm.php\?(.*?)"|',
-					'|"'.$site_url.'/index_qhm.php"|'
-				);
+			{	
+				$do_import = true;
 
-				$rep = array(
-					'"'.$site_url.'/"',
-					'"'.$site_url.'/$1/"',
-					'"'.$site_url.'/"'
-				);
-				$body = preg_replace( $ptrn, $rep, $body );
-								
-				
-				// 主に画像ファイルのパスを変更（メディアへの移動も行う）
-				$matches = array();
-				preg_match_all('|"swfu/d/(.*?)"|', $body, $matches);
-				
-				// - - - - - - -
-				// ファイルのコピーと登録とURL置換
-				foreach( $matches[1] as $fname )
-				{
-					$m_url = $this->add_media( $fname );
-					$body = str_replace('swfu/d/'.$fname, $m_url, $body);
-				}
-								
-				// - - - - - - -
-				// ダウンロードリンクを修正する
-				$matches = array();
-				$num = preg_match_all('/<a  onClick=.*?dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?>(.*?)<\/a>/', $body, $matches);
-				for( $i=0; $i<$num; $i++)
-				{					
-					$m_url = $this->add_media( $matches[1][$i] );
-					$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[2][$i].'</a>';
-					$body = str_replace($matches[0][ $i ], $rep, $body);
-				}
-				
-				// - - - - - - - -
-				// ダウンロードボタンを修正する
-				$matches = array();
-				$num = preg_match_all('/<input.*dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?\/>/', $body, $matches);
-				for( $i=0; $i<$num; $i++ )
-				{
-					$m_url = $this->add_media( $matches[1][$i] );
-					$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[1][$i].'</a>';
-					$body = str_replace($matches[0][ $i ], $rep, $body);
-				}
-				
-				// 登録する
-				//   Page なら
-				//     - 普通に登録するだけ
-				//   Post なら
-				//     - $post のデータを取り出して、処理する
-				$matches = array();
-				if( preg_match('/^QBlog-(\d{8})-.*$/', $name, $matches) ) //ブログ投稿
-				{
-					// TODO
-					//   - preg_match で日付を取り出して
-					//   - 日付を使ってブログを投稿する
-					//   - カテゴリの設定も忘れずに $post_cat を使う
+				if( $skip ){ 					
+					$wpq = new WP_Query( array(
+						'name' => $name ,
+						'post_type' => array('post', 'page')
+					) );
 					
-					$post_date = date("Y-m-d H:i:s", strtotime( $matches[1] ) );
-					$cat_id = isset($post_cat[$name]) ? array($post_cat[$name]) : '';
+					if( $wpq->have_posts() )
+					{						
+						$do_import = false;
+					}
+				}
+				
+				
+				if( $do_import )
+				{			
+					// 時間を取得				
+					$ftime = filemtime($file);
+					
+					// コンテンツを取得
+					$html = file_get_contents( site_url().'/index_qhm.php?'. rawurlencode( $name ) );
+									
+					// body だけを取得
+					preg_match('/<!-- BODYCONTENTS START -->(.*?)<!-- BODYCONTENTS END -->/s', $html, $arr);
+					$body = $arr[1];
+					
+					// URLの修正
+					//    - index_qhm.php?Hogehoge を /Hogehoge/ に変更する
+					//    - index_qhm.php?FrontPage を / に変更
+					//    - index_qhm.php を / に変更
+					$ptrn = array(
+						'|"'.$site_url.'/index_qhm.php\?FrontPage"|',	
+						'|"'.$site_url.'/index_qhm.php\?(.*?)"|',
+						'|"'.$site_url.'/index_qhm.php"|'
+					);
+	
+					$rep = array(
+						'"'.$site_url.'/"',
+						'"'.$site_url.'/$1/"',
+						'"'.$site_url.'/"'
+					);
+					$body = preg_replace( $ptrn, $rep, $body );
 
-					// タイトルを取得
-					preg_match('/<title>(.*?)<\/title>/', $html, $arr );
-					$title = $arr[1];
+									
+					// ==========================================================
+					//
+					// メディアの登録 : 
+					//   swfu/d に格納されている img をWordPressに取り込む
+					//   swfu/d に格納されているファイルのダウンロードボタン、リンク も移動させる
+					//
 					
-					// 不要なHTMLを削除
-					$lines = explode("\n", $body);
-					$body = '';
-					foreach($lines as $line)
+					$matches = array();
+					preg_match_all('|"swfu/d/(.*?)"|', $body, $matches);
+					
+					// - - - - - - -
+					// ファイルのコピーと登録とURL置換
+					foreach( $matches[1] as $fname )
 					{
-						if( preg_match('/<div class="qhm_plugin_social_buttons">/', $line) ){
-							break;
-						}
-						if( preg_match('/<ul class="pager">/', $line) ){
-							break;
-						}
-						$body .= $line."\n";
+						$m_url = $this->add_media( $fname );
+						$body = str_replace('swfu/d/'.$fname, $m_url, $body);
+					}
+									
+					// - - - - - - -
+					// ダウンロードリンクを修正する
+					$matches = array();
+					$num = preg_match_all('/<a  onClick=.*?dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?>(.*?)<\/a>/', $body, $matches);
+					for( $i=0; $i<$num; $i++)
+					{					
+						$m_url = $this->add_media( $matches[1][$i] );
+						$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[2][$i].'</a>';
+						$body = str_replace($matches[0][ $i ], $rep, $body);
 					}
 					
-					// タイトルタグや、ソーシャルボタンを削除
-					$ptrn = array(
-							'/<style.*?<\/style>/s',
-							'/<div class="title">.*?<\/div>/s',
-							'/<h2>.*<\/h2>/'
-					);
-					$body = preg_replace($ptrn, '', $body);
+					// - - - - - - - -
+					// ダウンロードボタンを修正する
+					$matches = array();
+					$num = preg_match_all('/<input.*dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?\/>/', $body, $matches);
+					for( $i=0; $i<$num; $i++ )
+					{
+						$m_url = $this->add_media( $matches[1][$i] );
+						$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[1][$i].'</a>';
+						$body = str_replace($matches[0][ $i ], $rep, $body);
+					}
 					
-					$post_param = array(
-						'post_type'			=> 'post',
-						'post_date'			=> $post_date,
-						'post_title'		=> $title,
-						'post_content'		=> $body,
-						'post_name'			=> $name,
-						'post_status'		=> 'publish',
-						'post_category'		=> $cat_id
-					);
+					// - - - - - - - - - - -
+					// 古い画像リンクを処理する
+					$body = $this->add_media_attach($body);
 					
-					wp_insert_post( $post_param );
-					$cnt_post++;
-				
-				}
-				else // 固定ページ
-				{
-					$post_date = date("Y-m-d H:i:s", $ftime);
 					
-					$post_param = array(
-						'post_type'			=> 'page',
-						'post_date'			=> $post_date,
-						'post_title'		=> $name,
-						'post_content'		=> $body,
-						'post_name'			=> $name,
-						'post_status'		=> 'publish',
-					);
-
-					wp_insert_post( $post_param );	
-					$cnt_page++;
+					// ==============================================
+					// QHMのページとブログを登録する
+					//   Page なら、普通に登録するだけ
+					//   Post なら、$post のデータを取り出して、処理する
+					//
+					// すでに読み込んだものをスキップする機能あり
+					//
+					$matches = array();
+					if( preg_match('/^QBlog-(\d{8})-.*$/', $name, $matches) ) //ブログ投稿
+					{
+						// TODO
+						//   - preg_match で日付を取り出して
+						//   - 日付を使ってブログを投稿する
+						//   - カテゴリの設定も忘れずに $post_cat を使う
+						
+						$post_date = date("Y-m-d H:i:s", strtotime( $matches[1] ) );
+						$cat_id = isset($post_cat[$name]) ? array($post_cat[$name]) : '';
+	
+						// タイトルを取得
+						preg_match('/<title>(.*?)<\/title>/', $html, $arr );
+						$title = $arr[1];
+						
+						// 不要なHTMLを削除
+						$lines = explode("\n", $body);
+						$body = '';
+						foreach($lines as $line)
+						{
+							if( preg_match('/<div class="qhm_plugin_social_buttons">/', $line) ){
+								break;
+							}
+							if( preg_match('/<ul class="pager">/', $line) ){
+								break;
+							}
+							$body .= $line."\n";
+						}
+						
+						// タイトルタグや、ソーシャルボタンを削除
+						$ptrn = array(
+								'/<style.*?<\/style>/s',
+								'/<div class="title">.*?<\/div>/s',
+								'/<h2>.*<\/h2>/'
+						);
+						$body = preg_replace($ptrn, '', $body);
+						
+						$post_param = array(
+							'post_type'			=> 'post',
+							'post_date'			=> $post_date,
+							'post_title'		=> $title,
+							'post_content'		=> $body,
+							'post_name'			=> $name,
+							'post_status'		=> 'publish',
+							'post_category'		=> $cat_id
+						);
+						
+						wp_insert_post( $post_param );
+						$cnt_post++;
+					
+					}
+					else // 固定ページ
+					{
+						$post_date = date("Y-m-d H:i:s", $ftime);
+						
+						$post_param = array(
+							'post_type'			=> 'page',
+							'post_date'			=> $post_date,
+							'post_title'		=> $name,
+							'post_content'		=> $body,
+							'post_name'			=> $name,
+							'post_status'		=> 'publish',
+						);
+	
+						wp_insert_post( $post_param );	
+						$cnt_page++;
+					}
 				}
 			}
 		}
-		
+
 		add_settings_error( 'qhm_import', 'qhm_migrated', "{$cnt_page}件の固定ページと、{$cnt_post}件のブログ投稿を読み込みました。", 'updated');
 	}
 	
@@ -473,9 +528,13 @@ class QHM_Migrator
 	* $fname = ファイル名（パスは含まない）	
 	* 戻り値は「ファイルのURL」
 	*/
-	function add_media( $fname )
+	function add_media( $fname , $src_path = '')
 	{
 		$upload_dir = wp_upload_dir();
+		if( $src_path == '')
+		{
+			$src_path = ABSPATH.'swfu/d/'.$fname;
+		}
 		
 		// WordPress内のファイルパス
 		$fpath = $upload_dir['path'].'/'.$fname;
@@ -483,7 +542,7 @@ class QHM_Migrator
 		// WordPressにメディア登録（既に登録していなければ）
 		if( !file_exists($fpath) )
 		{						
-			copy( ABSPATH.'swfu/d/'.$fname,  $fpath );
+			copy( $src_path,  $fpath );
 			$type = wp_check_filetype($fpath);
 			
 			$aid = wp_insert_attachment( array(
@@ -501,6 +560,44 @@ class QHM_Migrator
 		return $upload_dir['url'] .'/'. $fname;
 	}
 	
+	/**
+	* 古いQHMのref (attacheフォルダ) を使っている画像を移動させる
+	* 書き換えたbody を返却する
+	*/
+	function add_media_attach( $body )
+	{
+		$matches = array();
+		preg_match_all('/<img src=".*plugin=ref&amp;page=(.*?)&amp;src=(.*?)"(.*?)\/>/', $body, $matches );
+		
+		$cnt = count( $matches[0] );
+		
+		$search = array();
+		$replace = array();
+		
+		for( $i=0; $i<$cnt; $i++ )
+		{
+			$search[] = $matches[0][$i];
+			$page = $matches[1][$i];
+			$fname = rtrim($matches[2][$i], '/');			
+			
+			$src_path = ABSPATH.'attach/'.strtoupper( bin2hex($page).'_'.bin2hex( urldecode($fname) ) );
+			
+			// urlとして使えないファイル名の場合
+			if ( preg_match('/%/', $fname) )
+			{
+				$fname = substr(str_shuffle('1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz'), 0, 10) .'.'. pathinfo($fname, PATHINFO_EXTENSION);
+			}
+
+			$url = $this->add_media($fname, $src_path);
+			$replace[] = '<img src="'.$url.'" title="'.$fname.'">';
+		}
+		
+		$body = str_replace($search, $replace, $body);
+		
+		
+		return  $body;
+		
+	}
 	
 	
 	/**
