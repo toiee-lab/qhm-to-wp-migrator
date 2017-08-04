@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.4
+Version: 0.5
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -49,11 +49,8 @@ class QHM_Migrator
         add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
 		add_action( 'admin_init', array( $this, 'page_init' ) );
 
-		// WPの移行が完了していたら、転送設定を有効にする
-		if( $this->options['qhm_migrated'] == '1')
-		{
-			add_action( 'wp_loaded', array( $this, 'redirect_qhm_to_wp') );
-		}
+		// 転送設定を登録する（移行完了あるいは、ログインしている時は転送される）
+		add_action( 'wp_loaded', array( $this, 'redirect_qhm_to_wp') );
 	}
 
 
@@ -631,23 +628,27 @@ class QHM_Migrator
 	/* QHMのURLへのアクセスをWordPressの固定ページへ転送する */
 	function redirect_qhm_to_wp(){
 		
-		if( $_SERVER['QUERY_STRING']!='' && strpos($_SERVER['QUERY_STRING'], '=') === false )
+		if( $this->options['qhm_migrated'] == '1' || is_user_logged_in() )
 		{
-			$qhm_page_name = $_SERVER['QUERY_STRING'];
 			
-			if( get_page_by_path( $qhm_page_name ) ){
-				
-				$url = get_site_url().'/'.$qhm_page_name;
-				header("HTTP/1.1 301 Moved Permanently");
-				header('Location: '.$url);
-				exit;
-		
-			}
-			
-			if( strpos($qhm_page_name, '%') !== false )
+			if( $_SERVER['QUERY_STRING']!='' && strpos($_SERVER['QUERY_STRING'], '=') === false )
 			{
-				header('Location: '.get_site_url());
-				exit;
+				$qhm_page_name = $_SERVER['QUERY_STRING'];
+				
+				if( get_page_by_path( $qhm_page_name ) ){
+					
+					$url = get_site_url().'/'.$qhm_page_name;
+					header("HTTP/1.1 301 Moved Permanently");
+					header('Location: '.$url);
+					exit;
+			
+				}
+				
+				if( strpos($qhm_page_name, '%') !== false )
+				{
+					header('Location: '.get_site_url());
+					exit;
+				}
 			}
 		}
 	}	
