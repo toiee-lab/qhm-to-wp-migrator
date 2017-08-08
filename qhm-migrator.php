@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.5
+Version: 0.6
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -23,6 +23,14 @@ Author URI: http://wpa.toiee.jp/
     along with this program; if not, write to the Free Software
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
+
+//Use version 2.0 of the update checker.
+require 'plugin-update-checker/plugin-update-checker.php';
+$MyUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
+	'https://qhm2wp.toiee.jp/wp-content/uploads/toiee-lab-org-plugin-theme/wordpress-to-qhm-migrator-master-metadata.json',
+	__FILE__,
+	'wordpress-to-qhm-migrator-master'
+);
 
 if (!defined('PHP_VERSION_ID')) {
     $version = explode('.', PHP_VERSION);
@@ -87,6 +95,35 @@ class QHM_Migrator
 				$this->import($skip);
 	        }
         }
+        
+        // indexファイルの修正を行う
+        if ( isset($_POST['do-qm-set-index']) && $_POST['do-qm-set-index'] )
+        {
+	        if( check_admin_referer( 'my-nonce-key', 'qm-set-index' ) )
+	        {
+		    	//copy (index.php (wordpress))
+		    	if( copy( dirname( __FILE__ ).'/index_wp.php', ABSPATH.'index.php' ) )
+		    	{
+			    	
+		    	}
+		    	else
+		    	{
+			    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_wp.php の設置に失敗しました。手動で設置してください。", 'error');
+		    	}
+		    	
+		    	//copy (index_qhm.php)
+		    	if( copy( dirname( __FILE__ ).'/index_qhm.php', ABSPATH.'index_qhm.php' ) )
+		    	{
+			    	
+		    	}
+		    	else
+		    	{
+			    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_qhm.php の設置に失敗しました。手動で設置してください。", 'error');
+		    	}
+
+	        }
+        }
+
     }
  
     /**
@@ -102,7 +139,21 @@ class QHM_Migrator
 		}
 	    
 	    // index_qhm.php があるかをチェックします
-	    $is_exists = file_exists(ABSPATH.'index_qhm.php');
+	    $is_exists = false;	    
+	    if( file_exists(ABSPATH.'index_qhm.php') ){
+		    $tmpstr = file_get_contents(ABSPATH.'index_qhm.php');
+		    if(  preg_match('/pukiwiki\.php/s', $tmpstr) ){
+			    $is_exists = true;
+		    }
+	    }
+
+		$is_correct_index_file = false;
+		if( file_exists(ABSPATH.'index.php') ){
+			$tmpstr = file_get_contents(ABSPATH.'index.php');
+			if( preg_match('/wp-blog-header\.php/s', $tmpstr) ){
+				$is_correct_index_file = true;
+			}
+		}
 		
 		// php のバージョンをチェックします
 	    $phpver_ok = PHP_VERSION_ID >= 50600 ? true : false;
@@ -111,33 +162,59 @@ class QHM_Migrator
         // 設定値を取得します。
         $this->options = get_option( 'qm_setting' );
         $migrated = ($this->options['qhm_migrated'] == '1') ? true : false;
+        
+        //サイトの状態
+        $site_status = '';
+        if( $migrated ){
+	        $site_status = '<span style="color:blue">WordPressの内容が表示されています</span>';
+	        if( $is_exists ){
+		        $site_status .= '。また、index_qhm.php では、QHMサイトが表示されます';
+	        }
+        }
+        else {
+	        $site_status = '<span style="color:orange">QHMの内容が表示されています</span>';
+        }
+        
+        // index.php の状態
+        $qhm_status = '';
+        if( $migrated ){
+	        $qhm_status = $is_exists ? 
+	        	'存在します。index_qhm.phpにアクセスすると、QHMのサイトが見れる状態です。' 
+	        	: '存在しません(問題ありません)';
+        }
+        else{
+	        $qhm_status = $is_exists ? '存在します。インポート作業ができる状態です。' : '<span style="color:red">存在しません。インポート作業ができません。</span>';
+        }
+        
         ?>
         <div class="wrap">
             <h2>QHM移行支援ツール</h2>
             
-			<?php if($is_exists == false && $migrated == false ) { ?>			
-			 <div class="notice notice-error"><p><b>重要 : index_qhm.php がありません。</b><br>
-				 index_qhm.php がないとQHMサイトが表示できません。<a href="https://wpa.toiee.jp/kb/qhm-to-wp-migrate/" target="_blank">こちらの説明を参考に</a>、index_qhm.php を設置してください。</p></div>
-			<?php } ?>
-            
-            <?php if( $migrated ){ ?>
-   	        <div class="notice notice-info"><p>WordPressのサイトが公開されています。</p></div>
-   	        	<?php if($is_exists){ ?>
-   					<div class="notice notice-error"><p><b>重要 : </b>index_qhm.phpが存在します。削除するか、リネームしてください。</p></div>
-   				<?php } ?>
-   	        <?php } else { ?>
-   	        <div class="notice notice-error"><p>現在、一般の訪問者からはQHMが見えている状態です。</p></div>
-   	        <?php } ?>
 
-            <p>以下の手順で、QHMからWordPressに移行してください。</p>
-            <p><strong>環境情報</strong></p>
-            <ul>
-	            <li>PHPのバージョン : <?php echo $phpver; ?></li>
-	            <li>display_errors : <?php echo ini_get('display_errors');?></li>
-	            <li>max_execution_time : <?php echo ini_get('max_execution_time');?></li>
-	            <li>memory_limit : <?php echo ini_get('memory_limit');?></li>
-	            <li></li>
-            </ul>
+	            <h3>情報</h3>
+	            <ul style="margin-left:2em;list-style-type: disc;">
+	            	<li><strong>環境情報 : </strong>PHP ver<?php echo $phpver; ?>, display_errors = <?php echo ini_get('display_errors');?>, max_execution_time = <?php echo ini_get('max_execution_time');?>, memory_limit = <?php echo ini_get('memory_limit');?></li>
+					<li><strong>一般訪問者からのこのサイトの状態 : </strong><?php echo $site_status; ?></li>
+					<li><strong>index.php の状態 : </strong><?php echo $is_correct_index_file ? "WordPressです" : "QHMのままの可能性があります"; ?></li>
+					<li ><strong>index_qhm.php の状態 : </strong><?php echo $qhm_status; ?></li>
+	            </ul>
+	            
+	            <?php if( !$is_exists ){ ?>
+	            
+	            <p style="color:red;font-weight: bold;">index.php や index_qhm.php ファイルに不備があります。以下のボタンを押して、正しい状態にしてください。</p>
+	            <form  id="qm-set-index" method="post" action="">
+		            <?php wp_nonce_field('my-nonce-key', 'qm-set-index'); ?>
+		            <input type="hidden" name="do-qm-set-index" value="true">
+		            <p><input type="submit" value="indexファイルを正しく設定する" class="button button-primary button-large" onclick='return confirm("実行しても良いですか？");' /></p>
+
+	            </form>
+	            
+				<?php } ?>
+
+            
+            <hr>
+			<p>以下の手順で、QHMからWordPressに移行してください。</p>
+            
 
 			<div class="card">
 	            <h3>Step1. QHMデータをインポート</h3>
@@ -156,7 +233,7 @@ class QHM_Migrator
 					    echo '<p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>';
 
 		            }
-		            if(! $phpver_ok)
+		            else if(! $phpver_ok)
 		            {
 			            echo '<strong style="color:red">PHPのバージョンが古いです。PHP5.6以上に設定してから実行してください</strong>';;
 		            }
@@ -170,11 +247,12 @@ class QHM_Migrator
 		            <p><input type="submit" value="QHMのデータをインポートする" class="button button-primary button-large" onclick='return confirm("実行しても良いですか？");' /></p>
 
 	            </form>
+	            <p style="color: gray">お知らせ: 既存ページとは「同じURL」のページです。チェックボックスをオンにしておくと、大量のページの読み込みで途中で止まってしまった時などに便利です。何度か繰り返せば、すべてのページが読み込まれるはずです。</p>
 <?php	
 		            }
 	            ?>
 
-	            <p style="color: gray">お知らせ: 既存ページとは「同じURL」のページです。チェックボックスをオンにしておくと、大量のページの読み込みで途中で止まってしまった時などに便利です。何度か繰り返せば、すべてのページが読み込まれるはずです。</p>
+	            
 			</div>
             
             <br>
