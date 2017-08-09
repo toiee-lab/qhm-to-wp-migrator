@@ -4,8 +4,8 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.7
-Author URI: https://github.com/toiee-lab/wordpress-to-qhm-migrator
+Version: 0.8
+Author URI: http://wpa.toiee.jp/
 */
 
 /*  Copyright 2017 toiee Lab (email : desk@toiee.jp)
@@ -199,7 +199,7 @@ class QHM_Migrator
 					<li ><strong>index_qhm.php の状態 : </strong><?php echo $qhm_status; ?></li>
 	            </ul>
 	            
-	            <?php if( !$is_exists ){ ?>
+	            <?php if( !$is_correct_index_file ){ ?>
 	            
 	            <p style="color:red;font-weight: bold;">index.php や index_qhm.php ファイルに不備があります。以下のボタンを押して、正しい状態にしてください。</p>
 	            <form  id="qm-set-index" method="post" action="">

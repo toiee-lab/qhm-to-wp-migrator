@@ -29,7 +29,7 @@ QHM Migrator は以下の３つの機能があります。
 11. **QHM移行完了する** : 設定>QHM移行で、「移行完了」を設定します。すると、QHMには転送せず、WordPressを表示するようになります。
 
 
-[上記の手順の詳しいマニュアルとサポートをご用意しています（募集が終了している場合があります）。](https://qhm2wp.toiee.jp/)
+[上記の手順の詳しいマニュアルとサポートをご用意しています（募集が終了している場合があります）。](https://qhm2wp.toiee.jp/manual/self/)
 
 
 
@@ -59,6 +59,9 @@ QHM Migrator は以下の３つの機能があります。
 ## Change log
 
 - [詳細は、こちら](https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master)
+
+### ver 0.8 (Aug 9, 2017)
+- index.php が QHMのままの場合、修正する方法 (ver0.6で導入) が有効になっていなかった不具合を修正
 
 ### ver 0.7 (Aug 9, 2017)
 - 移行を行いやすくするために、便利なリンクを追加しました
