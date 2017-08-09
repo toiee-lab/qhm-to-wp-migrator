@@ -60,10 +60,9 @@ QHM Migrator は以下の３つの機能があります。
 
 - [詳細は、こちら](https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master)
 
-### ver 0.8 (Aug 9, 2017)
+### ver 0.8.1 (Aug 9, 2017)
+- index_wp.php, index_qhm.php が同封されていなかったので追加（GitHubに慣れてない)
 - index.php が QHMのままの場合、修正する方法 (ver0.6で導入) が有効になっていなかった不具合を修正
-
-### ver 0.7 (Aug 9, 2017)
 - 移行を行いやすくするために、便利なリンクを追加しました
 
 ### ver 0.6 (Aug 8, 2017)
