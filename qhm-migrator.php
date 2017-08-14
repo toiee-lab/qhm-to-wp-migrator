@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.8.1
+Version: 0.8.2
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -43,6 +43,7 @@ $qhm_migrator = new QHM_Migrator();
 class QHM_Migrator 
 {
 	var $options;
+	var $import_result;
 	
 	function __construct()
 	{	
@@ -422,107 +423,119 @@ class QHM_Migrator
 		$cnt_page = 0;
 		$cnt_post = 0;
 		
+		
+		// ページの長さチェック
+		foreach( $files as $file )
+		{
+			$name = hex2bin( basename($file, '.txt') );	
+			$tmp1 = utf8_uri_encode( $name );
+			$tmp2 = utf8_uri_encode( $name, 200 );
+			
+			if( $tmp1 != $tmp2)
+			{
+				$err_url = $site_url.'/index_qhm.php?'.rawurlencode( $name );
+				add_settings_error( 'qhm_import', 'qhm_migrated', "長すぎるページ名( <a href='{$err_url}' target='_blank'>{$name}</a> )が存在します。インポートを中止しました。ページ名を変更してから、再度、インポートしてください。", 'error');
+				return null;
+			}
+		}
+		
+		
+		// import 開始
 		foreach($files as $file)
 		{
-			$name = hex2bin( basename($file, '.txt') );
-			
-			//ナビや設定用のページなどは、無視する
-			if( preg_match('/^(:config|:config.*|:RenameLog|InterWiki|InterWikiName|MenuAdmin|MenuBar|MenuBar2|QBlog|QBlogMenuBar|QHMAdmin|RecentChanges|SiteNavigator|SiteNavigator2|:ConvertCodeLog|RecentDeleted)$/', $name) )
-			{
-				//do nothing		
-			}
-			else // WordPressに登録する
-			{	
-				$do_import = true;
+			$name = hex2bin( basename($file, '.txt') );		
 
-				if( $skip ){ 					
-					$wpq = new WP_Query( array(
-						'name' => $name ,
-						'post_type' => array('post', 'page')
-					) );
-					
-					if( $wpq->have_posts() )
-					{						
-						$do_import = false;
-					}
+			$do_import = true;
+
+			if( $skip ){ 					
+				$wpq = new WP_Query( array(
+					'name' => $name ,
+					'post_type' => array('post', 'page')
+				) );
+				
+				if( $wpq->have_posts() )
+				{						
+					$do_import = false;
+				}
+			}
+						
+			if( $do_import )
+			{			
+				// 時間を取得				
+				$ftime = filemtime($file);
+				
+				// コンテンツを取得
+				$html = file_get_contents( site_url().'/index_qhm.php?'. rawurlencode( $name ) );
+								
+				// body だけを取得
+				preg_match('/<!-- BODYCONTENTS START -->(.*?)<!-- BODYCONTENTS END -->/s', $html, $arr);
+				$body = $arr[1];
+				
+				// URLの修正
+				//    - index_qhm.php?Hogehoge を /Hogehoge/ に変更する
+				//    - index_qhm.php?FrontPage を / に変更
+				//    - index_qhm.php を / に変更
+				$ptrn = array(
+					'|"'.$site_url.'/index_qhm.php\?FrontPage"|',	
+					'|"'.$site_url.'/index_qhm.php\?(.*?)"|',
+					'|"'.$site_url.'/index_qhm.php"|'
+				);
+
+				$rep = array(
+					'"'.$site_url.'/"',
+					'"'.$site_url.'/$1/"',
+					'"'.$site_url.'/"'
+				);
+				$body = preg_replace( $ptrn, $rep, $body );
+
+								
+				// ==========================================================
+				//
+				// メディアの登録 : 
+				//   swfu/d に格納されている img をWordPressに取り込む
+				//   swfu/d に格納されているファイルのダウンロードボタン、リンク も移動させる
+				//
+				
+				$matches = array();
+				preg_match_all('|"swfu/d/(.*?)"|', $body, $matches);
+				
+				// - - - - - - -
+				// ファイルのコピーと登録とURL置換
+				foreach( $matches[1] as $fname )
+				{
+					$m_url = $this->add_media( $fname );
+					$body = str_replace('swfu/d/'.$fname, $m_url, $body);
+				}
+								
+				// - - - - - - -
+				// ダウンロードリンクを修正する
+				$matches = array();
+				$num = preg_match_all('/<a  onClick=.*?dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?>(.*?)<\/a>/', $body, $matches);
+				for( $i=0; $i<$num; $i++)
+				{					
+					$m_url = $this->add_media( $matches[1][$i] );
+					$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[2][$i].'</a>';
+					$body = str_replace($matches[0][ $i ], $rep, $body);
 				}
 				
+				// - - - - - - - -
+				// ダウンロードボタンを修正する
+				$matches = array();
+				$num = preg_match_all('/<input.*dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?\/>/', $body, $matches);
+				for( $i=0; $i<$num; $i++ )
+				{
+					$m_url = $this->add_media( $matches[1][$i] );
+					$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[1][$i].'</a>';
+					$body = str_replace($matches[0][ $i ], $rep, $body);
+				}
 				
-				if( $do_import )
-				{			
-					// 時間を取得				
-					$ftime = filemtime($file);
-					
-					// コンテンツを取得
-					$html = file_get_contents( site_url().'/index_qhm.php?'. rawurlencode( $name ) );
-									
-					// body だけを取得
-					preg_match('/<!-- BODYCONTENTS START -->(.*?)<!-- BODYCONTENTS END -->/s', $html, $arr);
-					$body = $arr[1];
-					
-					// URLの修正
-					//    - index_qhm.php?Hogehoge を /Hogehoge/ に変更する
-					//    - index_qhm.php?FrontPage を / に変更
-					//    - index_qhm.php を / に変更
-					$ptrn = array(
-						'|"'.$site_url.'/index_qhm.php\?FrontPage"|',	
-						'|"'.$site_url.'/index_qhm.php\?(.*?)"|',
-						'|"'.$site_url.'/index_qhm.php"|'
-					);
-	
-					$rep = array(
-						'"'.$site_url.'/"',
-						'"'.$site_url.'/$1/"',
-						'"'.$site_url.'/"'
-					);
-					$body = preg_replace( $ptrn, $rep, $body );
-
-									
-					// ==========================================================
-					//
-					// メディアの登録 : 
-					//   swfu/d に格納されている img をWordPressに取り込む
-					//   swfu/d に格納されているファイルのダウンロードボタン、リンク も移動させる
-					//
-					
-					$matches = array();
-					preg_match_all('|"swfu/d/(.*?)"|', $body, $matches);
-					
-					// - - - - - - -
-					// ファイルのコピーと登録とURL置換
-					foreach( $matches[1] as $fname )
-					{
-						$m_url = $this->add_media( $fname );
-						$body = str_replace('swfu/d/'.$fname, $m_url, $body);
-					}
-									
-					// - - - - - - -
-					// ダウンロードリンクを修正する
-					$matches = array();
-					$num = preg_match_all('/<a  onClick=.*?dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?>(.*?)<\/a>/', $body, $matches);
-					for( $i=0; $i<$num; $i++)
-					{					
-						$m_url = $this->add_media( $matches[1][$i] );
-						$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[2][$i].'</a>';
-						$body = str_replace($matches[0][ $i ], $rep, $body);
-					}
-					
-					// - - - - - - - -
-					// ダウンロードボタンを修正する
-					$matches = array();
-					$num = preg_match_all('/<input.*dlexec\.php\?filename=swfu%2Fd%2F(.*?)&.*?\/>/', $body, $matches);
-					for( $i=0; $i<$num; $i++ )
-					{
-						$m_url = $this->add_media( $matches[1][$i] );
-						$rep = '<a href="'.$m_url.'" target="_blank">'.$matches[1][$i].'</a>';
-						$body = str_replace($matches[0][ $i ], $rep, $body);
-					}
-					
-					// - - - - - - - - - - -
-					// 古い画像リンクを処理する
-					$body = $this->add_media_attach($body);
-					
-					
+				// - - - - - - - - - - -
+				// 古い画像リンクを処理する
+				$body = $this->add_media_attach($body);
+				
+				
+				if( $this->enable_import( $name ) )
+				{
 					// ==============================================
 					// QHMのページとブログを登録する
 					//   Page なら、普通に登録するだけ
@@ -599,6 +612,7 @@ class QHM_Migrator
 					}
 				}
 			}
+			
 		}
 
 		add_settings_error( 'qhm_import', 'qhm_migrated', "{$cnt_page}件の固定ページと、{$cnt_post}件のブログ投稿を読み込みました。", 'updated');
@@ -680,7 +694,14 @@ class QHM_Migrator
 		return  $body;
 		
 	}
-	
+
+	/**
+	* 読み込むべきページかをチェックする
+	*/
+	function enable_import($name)
+	{
+		return  ! preg_match('/^(:config|:config.*|:RenameLog|InterWiki|InterWikiName|MenuAdmin|MenuBar|MenuBar2|QBlog|QBlogMenuBar|QHMAdmin|RecentChanges|SiteNavigator|SiteNavigator2|:ConvertCodeLog|RecentDeleted)$/', $name); 
+	}	
 	
 	/**
 	* リダイレクト関連
