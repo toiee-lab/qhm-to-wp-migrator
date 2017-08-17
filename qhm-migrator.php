@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.8.2
+Version: 0.8.3
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -425,6 +425,7 @@ class QHM_Migrator
 		
 		
 		// ページの長さチェック
+		$too_long_name_pages = array();
 		foreach( $files as $file )
 		{
 			$name = hex2bin( basename($file, '.txt') );	
@@ -433,11 +434,25 @@ class QHM_Migrator
 			
 			if( $tmp1 != $tmp2)
 			{
-				$err_url = $site_url.'/index_qhm.php?'.rawurlencode( $name );
-				add_settings_error( 'qhm_import', 'qhm_migrated', "長すぎるページ名( <a href='{$err_url}' target='_blank'>{$name}</a> )が存在します。インポートを中止しました。ページ名を変更してから、再度、インポートしてください。", 'error');
-				return null;
+				$too_long_name_pages[] = $name;
 			}
 		}
+		
+		if( count( $too_long_name_pages ) > 0 )
+		{
+			$msg = '<p>長すぎるページ名が含まれているので、インポートを行いませんでした。ページ名を修正してから、インポートを行なってください。<a href="https://help.toiee.jp/article/73-shorten-page-name-for-migration" target="_blank">詳しい方法は、こちら</a></p>';
+			$msg .= '<ul>';
+			foreach( $too_long_name_pages as $too_p )
+			{
+				$msg .= '<li><a href="'.$site_url.'/index_qhm.php?'.rawurlencode( $too_p ).'" target="_blank">'.$too_p.'</a></li>';
+			}
+			$msg .= '</ul>';
+			
+			add_settings_error( 'qhm_import', 'qhm_migrated', $msg, 'error');
+			return null;
+		}
+		
+		
 		
 		
 		// import 開始
