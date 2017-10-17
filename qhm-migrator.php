@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.8.4
+Version: 0.9 b01
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -49,17 +49,11 @@ class QHM_Migrator
 	{	
 		$this->options = get_option( 'qm_setting', array('qhm_migrated' => '0') );
 		
-		// WPへの移行が終わっていない場合は、振り分け処理を登録する
-		if( $this->options['qhm_migrated'] == '0' )
-		{
-			add_action( 'wp_loaded', array( $this, 'switch_qhm_not_login' ) );
-		}
+		add_action( 'wp_loaded', array( $this, 'qhm_redirection' ) );
 		
         add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
 		add_action( 'admin_init', array( $this, 'page_init' ) );
 
-		// 転送設定を登録する（移行完了あるいは、ログインしている時は転送される）
-		add_action( 'wp_loaded', array( $this, 'redirect_qhm_to_wp') );
 	}
 
 
@@ -129,6 +123,7 @@ class QHM_Migrator
  
     /**
      * 設定ページのHTMLを出力します。
+     * 度重なる仕様変更で、スパゲッティーだ・・・。
      */
     function create_admin_page()
     {
@@ -140,19 +135,19 @@ class QHM_Migrator
 		}
 	    
 	    // index_qhm.php があるかをチェックします
-	    $is_exists = false;	    
+	    $is_index_qhm_exists = false;	    
 	    if( file_exists(ABSPATH.'index_qhm.php') ){
 		    $tmpstr = file_get_contents(ABSPATH.'index_qhm.php');
 		    if(  preg_match('/pukiwiki\.php/s', $tmpstr) ){
-			    $is_exists = true;
+			    $is_index_qhm_exists = true;
 		    }
 	    }
 
-		$is_correct_index_file = false;
+		$is_index_is_wp = false;
 		if( file_exists(ABSPATH.'index.php') ){
 			$tmpstr = file_get_contents(ABSPATH.'index.php');
 			if( preg_match('/wp-blog-header\.php/s', $tmpstr) ){
-				$is_correct_index_file = true;
+				$is_index_is_wp = true;
 			}
 		}
 		
@@ -168,7 +163,7 @@ class QHM_Migrator
         $site_status = '';
         if( $migrated ){
 	        $site_status = '<span style="color:blue">WordPressの内容が表示されています</span>';
-	        if( $is_exists ){
+	        if( $is_index_qhm_exists ){
 		        $site_status .= '。また、index_qhm.php では、QHMサイトが表示されます';
 	        }
         }
@@ -179,12 +174,12 @@ class QHM_Migrator
         // index.php の状態
         $qhm_status = '';
         if( $migrated ){
-	        $qhm_status = $is_exists ? 
+	        $qhm_status = $is_index_qhm_exists ? 
 	        	'存在します。index_qhm.phpにアクセスすると、QHMのサイトが見れる状態です。' 
 	        	: '存在しません(問題ありません)';
         }
         else{
-	        $qhm_status = $is_exists ? '存在します。インポート作業ができる状態です。' : '<span style="color:red">存在しません。インポート作業ができません。</span>';
+	        $qhm_status = $is_index_qhm_exists ? '存在します。インポート作業ができる状態です。' : '<span style="color:red">存在しません。インポート作業ができません。</span>';
         }
         
         ?>
@@ -196,11 +191,11 @@ class QHM_Migrator
 	            <ul style="margin-left:2em;list-style-type: disc;">
 	            	<li><strong>環境情報 : </strong>PHP ver<?php echo $phpver; ?>, display_errors = <?php echo ini_get('display_errors');?>, max_execution_time = <?php echo ini_get('max_execution_time');?>, memory_limit = <?php echo ini_get('memory_limit');?></li>
 					<li><strong>一般訪問者からのこのサイトの状態 : </strong><?php echo $site_status; ?></li>
-					<li><strong>index.php の状態 : </strong><?php echo $is_correct_index_file ? "WordPressです" : "QHMのままの可能性があります"; ?></li>
+					<li><strong>index.php の状態 : </strong><?php echo $is_index_is_wp ? "WordPressです" : "QHMのままの可能性があります"; ?></li>
 					<li ><strong>index_qhm.php の状態 : </strong><?php echo $qhm_status; ?></li>
 	            </ul>
 	            
-	            <?php if( !$is_correct_index_file ){ ?>
+	            <?php if( !$is_index_is_wp ){ ?>
 	            
 	            <p style="color:red;font-weight: bold;">index.php や index_qhm.php ファイルに不備があります。以下のボタンを押して、正しい状態にしてください。</p>
 	            <form  id="qm-set-index" method="post" action="">
@@ -229,7 +224,7 @@ class QHM_Migrator
 	            </ul>
 	            <?php
 		            
-		            if(! $is_exists)
+		            if(! $is_index_qhm_exists)
 		            {
 					    echo '<p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>';
 
@@ -382,7 +377,7 @@ class QHM_Migrator
 		}
 		
 		// カテゴリデータを解析する
-		$files = glob(ABSPATH.'/cacheqblog/*.qbc.dat');
+		$files = glob(ABSPATH.'/cacheqblog/*.qbc.dat');  //! ここを wrapして、外部から取得するように変える
 		foreach($files as $file)
 		{			
 			$dat = explode( "\n", file_get_contents($file) );
@@ -419,7 +414,7 @@ class QHM_Migrator
 		
 		
 		// page, post, media の取り込み
-		$files = glob(ABSPATH.'/wiki/*.txt');
+		$files = glob(ABSPATH.'/wiki/*.txt');  // ! ここを wrap して、外部から取得するように変える
 		$cnt_page = 0;
 		$cnt_post = 0;
 		
@@ -479,7 +474,7 @@ class QHM_Migrator
 				// 時間を取得				
 				$ftime = filemtime($file);
 				
-				// コンテンツを取得
+				//! コンテンツを取得 リモートのファイルを読み込めるようにする
 				$html = file_get_contents( site_url().'/index_qhm.php?'. rawurlencode( $name ) );
 								
 				// body だけを取得
@@ -492,12 +487,14 @@ class QHM_Migrator
 				//    - index_qhm.php を / に変更
 				$ptrn = array(
 					'|"'.$site_url.'/index_qhm.php\?FrontPage"|',	
+					'|"'.$site_url.'/index_qhm.php\?(.*?)%2F(.*?)"|',					
 					'|"'.$site_url.'/index_qhm.php\?(.*?)"|',
 					'|"'.$site_url.'/index_qhm.php"|'
 				);
 
 				$rep = array(
 					'"'.$site_url.'/"',
+					'"'.$site_url.'/$1$2"',
 					'"'.$site_url.'/$1/"',
 					'"'.$site_url.'/"'
 				);
@@ -516,6 +513,9 @@ class QHM_Migrator
 				
 				// - - - - - - -
 				// ファイルのコピーと登録とURL置換
+				
+				//! リモートの画像を読み込める方法を考える。もしかして、add_media がリモートできる？
+				
 				foreach( $matches[1] as $fname )
 				{
 					$m_url = $this->add_media( $fname );
@@ -641,6 +641,8 @@ class QHM_Migrator
 	*/
 	function add_media( $fname , $src_path = '')
 	{
+		//! リモートファイルに対応させる
+		
 		$upload_dir = wp_upload_dir();
 		if( $src_path == '')
 		{
@@ -718,40 +720,91 @@ class QHM_Migrator
 		return  ! preg_match('/^(:config|:config.*|:RenameLog|InterWiki|InterWikiName|MenuAdmin|MenuBar|MenuBar2|QBlog|QBlogMenuBar|QHMAdmin|RecentChanges|SiteNavigator|SiteNavigator2|:ConvertCodeLog|RecentDeleted)$/', $name); 
 	}	
 	
-	/**
-	* リダイレクト関連
-	*/
 	
-	/* ログインしていないときは、QHMを表示する */
-	function switch_qhm_not_login()
+	
+	// ================================================================
+	
+	/**
+	* QHMのデータを取得したり、リダイレクトするための関数軍
+	*/
+	function qhm_redirection()
 	{
+		// WordPressにログインしていれば、QHMのURLなら転送し、通常の処理へ
 		if( is_user_logged_in() )
 		{
-			//do noting
+			$this->redirect_qhm_to_wp();
+			return true;
+		}
+		
+		// WordPressの重要なディレクトリへのアクセスは、通常の処理へ
+		if( preg_match( '/(wp-admin|wp-login)/', $_SERVER['REQUEST_URI'] ) )
+		{
+			return true;
+		}
+		
+		$qhmm_status =  $this->options['qhm_migrated'];
+		
+		// 移行完了なら通常処理
+		if( $qhmm_status == 1)
+		{
+			$this->redirect_qhm_to_wp();
+			return true;
+		}
+		
+		
+		// ここにたどり着く処理は、
+		//     login してなくて、
+		//     wp-admin, wp-login でなくて
+		//     移行完了となっていない場合
+		
+		$url = get_site_url().'/index_qhm.php?'.$_SERVER['QUERY_STRING'];
+		
+		if( $qhmm_status == 0 )  // 移行作業中。QHMへ転送する
+		{
+			$this->load_qhm_page( $url );
+			exit;
+		}
+		else if( $qhmm_status == 2 ) // 移行作業中。QHMとWPを共存させる
+		{
+			//ページ名を取得して、WordPress内をチェック
+			//もし、存在して、公開されて入ればリダイレクト
+			$this->redirect_qhm_to_wp();
+			
+			//ないなら（この処理にたどり着くので、QHMを読み込んで終了
+			$this->load_qhm_page( $url );
+			exit;	
+		}
+	}
+	
+	function load_qhm_page( $url ){
+		
+		$body = @file_get_contents( $url );
+		
+		if( $body )
+		{
+			$body = preg_replace('/href(.*)(index_qhm\.php)(.*?)"/', 'href$1index.php$3"', $body);
+			echo $body;
 		}
 		else
-		{			
-			if( preg_match( '/(wp-admin|wp-login)/', $_SERVER['REQUEST_URI'] ) )
-			{
-				//do nothing
-			}
-			else
-			{
-				$url = get_site_url().'/index_qhm.php?'.$_SERVER['QUERY_STRING'];
-				header('Location: '.$url, true, 302);
-				exit;
-				
-			}
-				
+		{
+			header("HTTP/1.0 404 Not Found");
+			echo <<<EOD
+<html>
+	<head>
+		<title>Page not found</title>
+	</head>
+	<body>
+		<h1>Not Found</h1>
+		<p>The requested URL {$url} was not found on this server</p>
+	</body>
+</html>
+EOD;
 		}
 	}
 	
 	/* QHMのURLへのアクセスをWordPressの固定ページへ転送する */
 	function redirect_qhm_to_wp(){
 		
-		if( $this->options['qhm_migrated'] == '1' || is_user_logged_in() )
-		{
-			
 			if( $_SERVER['QUERY_STRING']!='' && strpos($_SERVER['QUERY_STRING'], '=') === false )
 			{
 				$qhm_page_name = $_SERVER['QUERY_STRING'];
@@ -771,6 +824,5 @@ class QHM_Migrator
 					exit;
 				}
 			}
-		}
 	}	
 }
