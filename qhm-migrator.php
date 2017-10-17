@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.9 b01
+Version: 0.9 b02
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -73,7 +73,7 @@ class QHM_Migrator
 	    // 転送設定のためのもの
         register_setting( 'qm_setting', 'qm_setting', array( $this, 'sanitize' ) );
         add_settings_section( 'qm_setting_section_id', '', '', 'qm_setting' );
-		add_settings_field( 'qhm_migrated', '移行完了', array( $this, 'message_callback' ), 'qm_setting', 'qm_setting_section_id' );        
+		add_settings_field( 'qhm_migrated', '公開状態', array( $this, 'message_callback' ), 'qm_setting', 'qm_setting_section_id' );        
         
         // インポートを実行する
         if ( isset($_POST['do-qm-import']) && $_POST['do-qm-import'] )
@@ -96,29 +96,61 @@ class QHM_Migrator
         {
 	        if( check_admin_referer( 'my-nonce-key', 'qm-set-index' ) )
 	        {
-		    	//copy (index.php (wordpress))
-		    	if( copy( dirname( __FILE__ ).'/index_wp.php', ABSPATH.'index.php' ) )
-		    	{
-			    	
-		    	}
-		    	else
-		    	{
-			    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_wp.php の設置に失敗しました。手動で設置してください。", 'error');
-		    	}
-		    	
-		    	//copy (index_qhm.php)
-		    	if( copy( dirname( __FILE__ ).'/index_qhm.php', ABSPATH.'index_qhm.php' ) )
-		    	{
-			    	
-		    	}
-		    	else
-		    	{
-			    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_qhm.php の設置に失敗しました。手動で設置してください。", 'error');
-		    	}
-
+		    	$this->set_index_files();
 	        }
         }
 
+    }
+    
+    function set_index_files($v = null)
+    {
+	    //copy (index.php (wordpress))
+    	if( ! copy( dirname( __FILE__ ).'/index_wp.php', ABSPATH.'index.php' ) ){
+	    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_wp.php の設置に失敗しました。手動で設置してください。", 'error');
+    	}
+    	
+    	//copy (index_qhm.php)
+    	if( is_null($v) ){
+	    	$v = isset( $this->options['qhm_migrated'] ) ? $this->options['qhm_migrated'] : '0';
+    	}
+    	
+    	if( $v == 1 ){
+	    	if( ! copy( dirname( __FILE__ ).'/index_qhm_to_wp.php', ABSPATH.'index_qhm.php' ))
+	    	{
+		    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_qhm.php の設置に失敗しました。index_qhm_to_wp.php を手動で設置してください。", 'error');
+	    	}
+	    }
+	    else{ //0:非公開、2:共存の時は、index_qhm.php を QHMのものに
+	    	if( ! copy( dirname( __FILE__ ).'/index_qhm.php', ABSPATH.'index_qhm.php' ) )
+	    	{ 
+		    	add_settings_error( 'qhm_import', 'qhm_migrated', "index_qhm.php の設置に失敗しました。手動で設置してください。", 'error');
+    		}
+    	}
+
+    }
+    
+    
+    /**
+     * 公開状態の設定画面を表示するためのコールバック関数です
+     */
+    function message_callback()
+    {
+        // 値を取得
+        $v = isset( $this->options['qhm_migrated'] ) ? $this->options['qhm_migrated'] : '0';
+
+?>
+<p><label>
+<input type="radio" name="qm_setting[qhm_migrated]" value="0"<?php checked( '0' == $v ); ?> />
+非公開(QHMのページが表示されます)</label></p>
+
+<p><label>
+<input type="radio" name="qm_setting[qhm_migrated]" value="2"<?php checked( '2' == $v ); ?> />
+共存(QHMとWordPressを同時に表示)</label></p>
+<p>
+<label><input type="radio" name="qm_setting[qhm_migrated]" value="1"<?php checked( '1' == $v ); ?> />
+公開 (WordPressが表示されます)</label></p>
+
+<?php
     }
  
     /**
@@ -126,23 +158,42 @@ class QHM_Migrator
      * 度重なる仕様変更で、スパゲッティーだ・・・。
      */
     function create_admin_page()
-    {
-	    
-       // ユーザーが必要な権限を持つか確認する必要がある
-	   if (!current_user_can('manage_options'))
-	   {
-	   		wp_die( __('You do not have sufficient permissions to access this page.') );
+    {		
+		// ユーザーが必要な権限を持つか確認する必要がある
+		if (!current_user_can('manage_options'))
+		{
+			wp_die( __('You do not have sufficient permissions to access this page.') );
 		}
+	
+		// php のバージョンをチェックします
+	    $phpver_ok = PHP_VERSION_ID >= 50600 ? true : false;
+	    $phpver = phpversion();
 	    
-	    // index_qhm.php があるかをチェックします
-	    $is_index_qhm_exists = false;	    
-	    if( file_exists(ABSPATH.'index_qhm.php') ){
-		    $tmpstr = file_get_contents(ABSPATH.'index_qhm.php');
-		    if(  preg_match('/pukiwiki\.php/s', $tmpstr) ){
-			    $is_index_qhm_exists = true;
+        // 設定値を取得します。
+        $this->options = get_option( 'qm_setting' );
+        $migrate_status = $this->options['qhm_migrated'];
+
+	    // index_qhm.php ファイルの状態をチェック
+	    $is_index_qhm_is_qhm = false;
+	    $is_index_qhm_correct = false;	    
+	    if( file_exists(ABSPATH.'index_qhm.php') )
+	    {
+			$tmpstr = file_get_contents(ABSPATH.'index_qhm.php');
+			
+		    if( $migrate_status == 1 ){  //公開状態の時は、転送用のものになっていること
+			    if( preg_match('/THIS_IS_QHM_TO_WP_REDIRECTION/', $tmpstr) ){
+				    $is_index_qhm_correct = true;
+			    }
 		    }
+		    else{ //0:非公開 , 2:共存 の状態の時は、QHMを表示
+				if(  preg_match('/pukiwiki\.php/s', $tmpstr) ){
+				    $is_index_qhm_correct = true;
+				    $is_index_qhm_is_qhm = true;
+				}
+			}
 	    }
 
+		// index.php ファイルの状態をチェック (WordPressのものである必要がある)
 		$is_index_is_wp = false;
 		if( file_exists(ABSPATH.'index.php') ){
 			$tmpstr = file_get_contents(ABSPATH.'index.php');
@@ -151,35 +202,30 @@ class QHM_Migrator
 			}
 		}
 		
-		// php のバージョンをチェックします
-	    $phpver_ok = PHP_VERSION_ID >= 50600 ? true : false;
-	    $phpver = phpversion();
-	    
-        // 設定値を取得します。
-        $this->options = get_option( 'qm_setting' );
-        $migrated = ($this->options['qhm_migrated'] == '1') ? true : false;
         
         //サイトの状態
         $site_status = '';
-        if( $migrated ){
-	        $site_status = '<span style="color:blue">WordPressの内容が表示されています</span>';
-	        if( $is_index_qhm_exists ){
-		        $site_status .= '。また、index_qhm.php では、QHMサイトが表示されます';
-	        }
+        switch( $migrate_status ){
+	        case 0: 
+	        	$site_status = '非公開(QHMを表示)';
+	        	break;
+	        case 1:
+	        	$site_status = '公開(WordPressを表示、QHMから転送)';
+	        	break;
+	        case 2:
+	        	$site_status = '共存(WordPress、QHMを適宜表示)';
+	        	break;
+			default:
+				$site_status = 'error';
         }
-        else {
-	        $site_status = '<span style="color:orange">QHMの内容が表示されています</span>';
-        }
+
         
         // index.php の状態
-        $qhm_status = '';
-        if( $migrated ){
-	        $qhm_status = $is_index_qhm_exists ? 
-	        	'存在します。index_qhm.phpにアクセスすると、QHMのサイトが見れる状態です。' 
-	        	: '存在しません(問題ありません)';
+        if( $is_index_qhm_correct && $is_index_is_wp ){
+	        $index_status_text = '<span style="color:blue">正常です</span>';
         }
         else{
-	        $qhm_status = $is_index_qhm_exists ? '存在します。インポート作業ができる状態です。' : '<span style="color:red">存在しません。インポート作業ができません。</span>';
+   	        $index_status_text = '<span style="color:red;font-weight:bold">不正です</span>';
         }
         
         ?>
@@ -190,14 +236,13 @@ class QHM_Migrator
 	            <h3>情報</h3>
 	            <ul style="margin-left:2em;list-style-type: disc;">
 	            	<li><strong>環境情報 : </strong>PHP ver<?php echo $phpver; ?>, display_errors = <?php echo ini_get('display_errors');?>, max_execution_time = <?php echo ini_get('max_execution_time');?>, memory_limit = <?php echo ini_get('memory_limit');?></li>
-					<li><strong>一般訪問者からのこのサイトの状態 : </strong><?php echo $site_status; ?></li>
-					<li><strong>index.php の状態 : </strong><?php echo $is_index_is_wp ? "WordPressです" : "QHMのままの可能性があります"; ?></li>
-					<li ><strong>index_qhm.php の状態 : </strong><?php echo $qhm_status; ?></li>
+					<li><strong>公開状態 : </strong><?php echo $site_status; ?></li>
+					<li><strong>indexファイルの状態 : </strong><?php echo $index_status_text; ?></li>
 	            </ul>
 	            
-	            <?php if( !$is_index_is_wp ){ ?>
+	            <?php if(! ($is_index_qhm_correct && $is_index_is_wp) ){ ?>
 	            
-	            <p style="color:red;font-weight: bold;">index.php や index_qhm.php ファイルに不備があります。以下のボタンを押して、正しい状態にしてください。</p>
+	            <p style="color:red;font-weight: bold;">index.php あるいは index_qhm.php ファイルが適切に設定されていません。以下のボタンを押して、正しい状態にしてください。</p>
 	            <form  id="qm-set-index" method="post" action="">
 		            <?php wp_nonce_field('my-nonce-key', 'qm-set-index'); ?>
 		            <input type="hidden" name="do-qm-set-index" value="true">
@@ -224,9 +269,9 @@ class QHM_Migrator
 	            </ul>
 	            <?php
 		            
-		            if(! $is_index_qhm_exists)
+		            if(! $is_index_qhm_is_qhm)
 		            {
-					    echo '<p style="color:red">index_qhm.php が存在しません。QHMのindex.phpファイルをindex_qhm.php として設置してください。</p>';
+					    echo '<p style="color:red">index_qhm.php がQHMのindex.phpファイルではありません。公開状態を変更するか、適切なindex_qhm.phpを設置してください。</p>';
 
 		            }
 		            else if(! $phpver_ok)
@@ -275,9 +320,15 @@ class QHM_Migrator
             <div class="card">
 
 	            <h3>Step3. 公開する</h3>
-	            <p>以下の移行完了を「はい」に設定することで、QHMではなくWordPressが表示されるようになります。<br>
-		            また、QHMのページへのリンク(index.php?XXXX)を、WordPressの固定ページのURL(/XXXX/)に転送も行います。
-	            </p>
+	            <p>公開状態を選んでください。それぞれ、以下のようになります。（どの状態でも、WordPressにログインすると、WordPressのサイトが表示されます。</p>
+	            <ul>
+		            <li><b>非公開 : </b>ログインしていないアクセスに対して、QHMのWebページを表示します。WordPressサイトは一切表示されません。WordPressページへのアクセスがあっても、QHMのトップページを表示します。</li>
+		            <li><b>共存: </b>ログインしていないアクセスに対して、置き換えるWordPressページが存在するQHMページへのアクセスは転送し、WordPressページを表示します。WordPressページへの直接のアクセスは、WordPressを表示します。</li>
+		            <li><b>公開: </b>全てのアクセスをWordPressへ転送します。index_qhm.php ファイルも置き換えるため、QHMのページは一切表示されません。</li>
+	            </ul>
+	            
+	            <p><a href="https://github.com/toiee-lab/wordpress-to-qhm-migrator/wiki/%E5%85%AC%E9%96%8B%E7%8A%B6%E6%85%8B%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6" target="_blank">詳しい解説は、こちらをご覧ください</a></p>
+
 	            <?php
 	            global $parent_file;
 	            if ( $parent_file != 'options-general.php' ) {
@@ -304,25 +355,6 @@ class QHM_Migrator
 
                         
         </div>
-        <?php
-    }
- 
-    /**
-     * 入力項目(「メッセージ」)のHTMLを出力します。
-     */
-    function message_callback()
-    {
-        // 値を取得
-        $flag = isset( $this->options['qhm_migrated'] ) ? $this->options['qhm_migrated'] : '0';
-
-?>
-<p><label>
-<input type="radio" name="qm_setting[qhm_migrated]" value="1"<?php checked( '1' == $flag ); ?> />
-はい (WordPressが表示されます)</label>
-<br></p>
-<p><label>
-<input type="radio" name="qm_setting[qhm_migrated]" value="0"<?php checked( '0' == $flag ); ?> />
-いいえ (QHMが表示されます)</label></p>
 <?php
     }
  
@@ -348,6 +380,10 @@ class QHM_Migrator
              // 値をDBの設定値に戻します。
             $new_input['qhm_migrated'] = isset( $this->options['qhm_migrated'] ) ? $this->options['qhm_migrated'] : '';
         }
+        
+        //index.php, index_qhm.php を設定
+    	$this->set_index_files( $new_input['qhm_migrated'] );
+
  
         return $new_input;
     }
