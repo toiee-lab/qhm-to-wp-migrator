@@ -7,7 +7,7 @@
 
 QHM Migrator は以下の３つの機能があります。
 
-1. **準備期間のQHMへの転送機能** : WordPressサイトを準備している間は、一般の訪問者には、QHMのページを表示させる機能です。サイトへのアクセスをチェックして、ログインしていなければ、 index_qhm.php に302転送を行います。
+1. **準備期間のQHMページの表示機能** : WordPressサイトを準備している間は、一般の訪問者には、QHMのページを表示させる機能です。サイトへのアクセスをチェックして、ログインしていなければ、 QHMのページを表示します。ただし、WordPressページへのURLの場合、QHMのフロントページを表示します。また、フォームは仕組み上、代理表示できないため、フォームのPOST先は index_qhm_proxy.php になります。このことで、多少の動作の違うが生まれますが、問題はないでしょう。なお、WordPress移行中にQHMを編集したいときは、 index_qhm_proxy.php にアクセスしてください。
 2. **インポート機能** : QHMのページ、ブログを解析し、swfu/d/ 内にある実際に使われている、リンクされている画像やファイルを移行します。また、ページは「固定ページ」、QBlogは「投稿」として、WordPressに登録します。
 3. **QHMのURLをWordPressのURLに転送** : QHMのURLは、 `index.php?HogeHoge` となります。これを `/HogeHoge/` として転送します。なお、インポートされたページや投稿は、 `/Hogehoge/` スラグとして登録されているので、正しく転送されます。
 
@@ -24,9 +24,9 @@ QHM Migrator は以下の３つの機能があります。
 6. **WordPressをアップロード** : WordPressをQHMを設置している場所にアップロードします
 7. **WordPressを設定** : /wp-admin/ にアクセスして、WordPressの設定を行います。事前にデータベースの作成、ユーザー追加などを行っておきます（お使いのレンタルサーバーのマニュアルを参照）
 8. **このプラグインをインストール、有効化** : 上記のダウンロードリンクから、ダウンロードします。次に プラグイン > 新規インストール　でこのプラグインのファイルを指定し、アップロードし、有効化します
-9. **index.php を入れ替え、index_qhm.php を用意する** : QHMのindex.php を index_qhm.php に、WordPressの index.php (index_wp.php) を index.php とします
+9. **indexファイルを適切に設定する** : WordPressがQHMページを表示したり、インポート作業を行えるように、index.php, index_qhm.php, index_qhm_proxy.php を適切に設定します。プラグインの画面にアクセスし、設定ボタンをクリックします。
 10. **QHMの移行作業** : 設定>QHM移行 に進むと、インポートなどができます。これらを使ってデータをインポートします。またWordPressの見た目などを調整します。この間、一般ユーザーは、QHMが表示されています
-11. **QHM移行完了する** : 設定>QHM移行で、「移行完了」を設定します。すると、QHMには転送せず、WordPressを表示するようになります。
+11. **QHM移行完了する** : 設定>QHM移行で、「公開」を設定します。すると、QHMを表示せず、WordPressを表示するようになります。
 
 
 [上記の手順の詳しいマニュアルとサポートをご用意しています（募集が終了している場合があります）。](https://qhm2wp.toiee.jp/manual/self/)
@@ -37,7 +37,7 @@ QHM Migrator は以下の３つの機能があります。
 
 ### 仕組み
 
-このプラグインは、 index_qhm.php にアクセスして、 `<!-- BODYCONTENTS START -->` から `<!-- BODYCONTENTS END -->` までのHTMLを取り込みます。取り込んだHTMLファイルを解析して、ブログ投稿に必要なタイトルなどを取得しています。
+このプラグインは、 index_qhm_proxy.php にアクセスして、 `<!-- BODYCONTENTS START -->` から `<!-- BODYCONTENTS END -->` までのHTMLを取り込みます。取り込んだHTMLファイルを解析して、ブログ投稿に必要なタイトルなどを取得しています。
 	
 もし、QHMのテンプレートファイルを独自に改変して、上記のコメントが表示されない場合は正常に動作しません。
 
@@ -60,6 +60,12 @@ QHM Migrator は以下の３つの機能があります。
 ## Change log
 
 - [詳細は、こちら](https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master)
+
+### ver 0.9
+- [index_qhm.php 問題について解決](https://github.com/toiee-lab/wordpress-to-qhm-migrator/issues/6)する
+- indexファイルを簡単に設定できるようにする
+- 公開、非公開、共存を選べるようになった
+
 
 ### ver 0.8.4 (Aug 19, 2017)
 - ナビ、サイドバー作成支援ツールのURLを変更
