@@ -766,13 +766,7 @@ class QHM_Migrator
 			$this->redirect_qhm_to_wp();
 			return true;
 		}
-		
-		// WordPressの重要なディレクトリへのアクセスは、通常の処理へ
-		if( preg_match( '/(wp-admin|wp-login)/', $_SERVER['REQUEST_URI'] ) )
-		{
-			return true;
-		}
-		
+				
 		$qhmm_status =  $this->options['qhm_migrated'];
 		
 		// 移行完了なら通常処理
@@ -780,56 +774,6 @@ class QHM_Migrator
 		{
 			$this->redirect_qhm_to_wp();
 			return true;
-		}
-		
-		
-		// ここにたどり着く処理は、
-		//     login してなくて、
-		//     wp-admin, wp-login でなくて
-		//     移行完了となっていない場合
-		
-		$url = get_site_url().'/index.php?'.$_SERVER['QUERY_STRING'];
-		
-		if( $qhmm_status == 0 )  // 移行作業中。QHMへ転送する
-		{
-			$this->load_qhm_page( $url );
-			exit;
-		}
-		else if( $qhmm_status == 2 ) // 移行作業中。QHMとWPを共存させる
-		{
-			//ページ名を取得して、WordPress内をチェック
-			//もし、存在して、公開されて入ればリダイレクト
-			$this->redirect_qhm_to_wp();
-			
-			//ないなら（この処理にたどり着くので、QHMを読み込んで終了
-			$this->load_qhm_page( $url );
-			exit;	
-		}
-	}
-	
-	function load_qhm_page( $url ){
-		
-		$body = @file_get_contents( $url );
-		
-		if( $body )
-		{
-			$body = preg_replace('/href(.*)(index_qhm\.php)(.*?)"/', 'href$1index.php$3"', $body);
-			echo $body;
-		}
-		else
-		{
-			header("HTTP/1.0 404 Not Found");
-			echo <<<EOD
-<html>
-	<head>
-		<title>Page not found</title>
-	</head>
-	<body>
-		<h1>Not Found</h1>
-		<p>The requested URL {$url} was not found on this server</p>
-	</body>
-</html>
-EOD;
 		}
 	}
 	
