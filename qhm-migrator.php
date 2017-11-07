@@ -4,7 +4,7 @@ Plugin Name: QHM Migrator
 Plugin URI: http://wpa.toiee.jp/
 Description: Quick Homepage Maker (haik-cms) からWordPressへの移行のためのプラグインです。インポート、切り替え、URL転送を行います。
 Author: toiee Lab
-Version: 0.9
+Version: 0.9.1
 Author URI: http://wpa.toiee.jp/
 */
 
@@ -408,7 +408,7 @@ class QHM_Migrator
 		}
 		
 		// カテゴリデータを解析する
-		$files = glob(ABSPATH.'/cacheqblog/*.qbc.dat');  //! ここを wrapして、外部から取得するように変える
+		$files = glob(ABSPATH.'/cacheqblog/*.qbc.dat');
 		foreach($files as $file)
 		{			
 			$dat = explode( "\n", file_get_contents($file) );
@@ -445,7 +445,7 @@ class QHM_Migrator
 		
 		
 		// page, post, media の取り込み
-		$files = glob(ABSPATH.'/wiki/*.txt');  //! ここを wrap して、外部から取得するように変える
+		$files = glob(ABSPATH.'/wiki/*.txt');
 		$cnt_page = 0;
 		$cnt_post = 0;
 		
@@ -505,7 +505,6 @@ class QHM_Migrator
 				// 時間を取得				
 				$ftime = filemtime($file);
 				
-				//! コンテンツを取得 リモートのファイルを読み込めるようにする
 				$html = file_get_contents( site_url().'/index.php?'. rawurlencode( $name ) );
 								
 				// body だけを取得
@@ -544,9 +543,6 @@ class QHM_Migrator
 				
 				// - - - - - - -
 				// ファイルのコピーと登録とURL置換
-				
-				//! リモートの画像を読み込める方法を考える。もしかして、add_media がリモートできる？
-				
 				foreach( $matches[1] as $fname )
 				{
 					$m_url = $this->add_media( $fname );
@@ -672,8 +668,6 @@ class QHM_Migrator
 	*/
 	function add_media( $fname , $src_path = '')
 	{
-		//! リモートファイルに対応させる
-		
 		$upload_dir = wp_upload_dir();
 		if( $src_path == '')
 		{
@@ -721,7 +715,7 @@ class QHM_Migrator
 		for( $i=0; $i<$cnt; $i++ )
 		{
 			$search[] = $matches[0][$i];
-			$page = $matches[1][$i];
+			$page = rawurldecode( $matches[1][$i] );
 			$fname = rtrim($matches[2][$i], '/');			
 			
 			$src_path = ABSPATH.'attach/'.strtoupper( bin2hex($page).'_'.bin2hex( urldecode($fname) ) );

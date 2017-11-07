@@ -69,6 +69,9 @@ ver0.9以前の `index_qhm.php` ページ問題を解決します
 
 - [詳細は、こちら](https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master)
 
+### ver 0.9.1
+- 日本語ページの古い添付ファイル（attachプラグインを使って、refプラグインで参照するもの。SWFUではないもの)を読み込めないバグを解決
+
 ### ver 0.9
 - WordPressとQHMをスイッチする（転送しない）ようになり、より安全に、確実に移行できるようになりました
 - [index_qhm.php 問題について解決](https://github.com/toiee-lab/wordpress-to-qhm-migrator/issues/6)しました

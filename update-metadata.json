@@ -2,7 +2,7 @@
     "name" : "WordPress plugin to migrate QHM to WordPress",
     "slug" : "wordpress-to-qhm-migrator-master",
     "download_url" : "https://github.com/toiee-lab/wordpress-to-qhm-migrator/archive/master.zip",
-    "version" : "0.9",
+    "version" : "0.9.1",
     "author" : "toiee Lab",
     "sections" : {
         "description" : "<a href=\"https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master\">詳細は、こちら</a></li>"
