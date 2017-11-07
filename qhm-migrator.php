@@ -49,6 +49,7 @@ class QHM_Migrator
 	var $remote_url;
 	var $remote_mode;
 	var $remote_skey;
+	var $debug_mode;
 	
 	function __construct()
 	{	
@@ -70,6 +71,12 @@ class QHM_Migrator
 		$this->remote_mode = false;
 		$this->remote_url = '';
 		$this->remote_skey = md5('AUTH_KEY');
+		
+		
+		$this->debug_mode = false;
+		if($this->debug_mode){
+			header("Content-Type: text/plain; charset=utf-8");
+		}
 	}
 	
 	function set_index_files($migrate_status)
@@ -463,6 +470,8 @@ class QHM_Migrator
 		
 		// カテゴリデータを解析する
 		$files = $this->glob_cat();
+//		$this->_echo($file, '$this->glob_cat()');
+		
 		foreach($files as $file)
 		{			
 			$dat = explode( "\n", $this->get_contents($file) );
@@ -500,6 +509,8 @@ class QHM_Migrator
 		
 		// page, post, media の取り込み
 		$files = $this->glob_wiki();
+//		$this->_echo($files, '$this->glob_wiki()');
+
 		$cnt_page = 0;
 		$cnt_post = 0;
 		
@@ -537,13 +548,22 @@ class QHM_Migrator
 		// import 開始
 		foreach($files as $file)
 		{
-			$name = hex2bin( basename($file, '.txt') );		
+			$name = hex2bin( basename($file, '.txt') );
+			$encode = mb_detect_encoding($name);
+			if($encode == 'EUC-JP'){
+				$utf8_name = mb_convert_encoding($name, "UTF-8", "EUC-JP");
+			}
+			else{
+				$utf8_name = $name;
+			}
+			
+//			$this->_echo($utf8_name, 'Wiki Page name(UTF-8)');
 
 			$do_import = true;
 
 			if( $skip ){ 					
 				$wpq = new WP_Query( array(
-					'name' => $name ,
+					'name' => $utf8_name ,
 					'post_type' => array('post', 'page')
 				) );
 				
@@ -557,9 +577,11 @@ class QHM_Migrator
 			{			
 				// 時間を取得				
 				$ftime = $this->get_filetime($file);
-				
-				$html = file_get_contents( $this->get_site_url().'/index.php?'. rawurlencode( $name ) );
+				$import_url = $this->get_site_url().'/index.php?'. rawurlencode( $name );
 								
+				$html = file_get_contents( $import_url );
+				$html = mb_convert_encoding( $html, "UTF-8", 'EUC-JP, UTF-8');
+												
 				// body だけを取得
 				preg_match('/<!-- BODYCONTENTS START -->(.*?)<!-- BODYCONTENTS END -->/s', $html, $arr);
 				$body = $arr[1];
@@ -569,13 +591,15 @@ class QHM_Migrator
 				//    - index.php?FrontPage を / に変更
 				//    - index.php を / に変更
 				$qhm_site_url = $this->get_site_url();
-				
+
+/*				
 				$ptrn = array(
 					'|"'.$qhm_site_url.'/index.php\?FrontPage"|',	
 					'|"'.$qhm_site_url.'/index.php\?(.*?)%2F(.*?)"|',					
 					'|"'.$qhm_site_url.'/index.php\?(.*?)"|',
 					'|"'.$qhm_site_url.'/index.php"|'
 				);
+
 
 				$rep = array(
 					'"'.$site_url.'/"',
@@ -584,8 +608,25 @@ class QHM_Migrator
 					'"'.$site_url.'/"'
 				);
 				$body = preg_replace( $ptrn, $rep, $body );
+*/
 
-								
+				$ptrn = array(
+					'|"'.$qhm_site_url.'/index.php\?FrontPage"|' => array($this, 'callback_fp'),	
+					'|"'.$qhm_site_url.'/index.php\?(.*?)%2F(.*?)"|' => array($this, 'callback_2f'),					
+					'|"'.$qhm_site_url.'/index.php\?(.*?)"|' => array($this, 'callback_std'),
+					'|"'.$qhm_site_url.'/index.php"|' => array($this, 'callback_fp')
+				);
+
+				foreach($ptrn as $key_p=>$clb)
+				{
+					$body = preg_replace_callback($key_p, $clb, $body);
+				}
+
+				
+				
+//				$this->_echo($body, "++++ {$utf8_name} ({$import_url}) +++");
+
+				
 				// ==========================================================
 				//
 				// メディアの登録 : 
@@ -628,6 +669,7 @@ class QHM_Migrator
 				
 				// - - - - - - - - - - -
 				// 古い画像リンクを処理する
+				$this->_echo('', '=== '.$utf8_name.' ===');
 				$body = $this->add_media_attach($body);
 				
 				
@@ -641,7 +683,7 @@ class QHM_Migrator
 					// すでに読み込んだものをスキップする機能あり
 					//
 					$matches = array();
-					if( preg_match('/^QBlog-(\d{8})-.*$/', $name, $matches) ) //ブログ投稿
+					if( preg_match('/^QBlog-(\d{8})-.*$/', $utf8_name, $matches) ) //ブログ投稿
 					{
 						// TODO
 						//   - preg_match で日付を取り出して
@@ -682,25 +724,25 @@ class QHM_Migrator
 							'post_date'			=> $post_date,
 							'post_title'		=> $title,
 							'post_content'		=> $body,
-							'post_name'			=> $name,
+							'post_name'			=> $utf8_name,
 							'post_status'		=> 'publish',
 							'post_category'		=> $cat_id
 						);
 						
-						wp_insert_post( $post_param );
+						$id = wp_insert_post( $post_param );						
 						$cnt_post++;
 					
 					}
 					else // 固定ページ
 					{
 						$post_date = date("Y-m-d H:i:s", $ftime);
-						
+												
 						$post_param = array(
 							'post_type'			=> 'page',
 							'post_date'			=> $post_date,
-							'post_title'		=> $name,
+							'post_title'		=> $utf8_name,
 							'post_content'		=> $body,
-							'post_name'			=> $name,
+							'post_name'			=> $utf8_name,
 							'post_status'		=> 'publish',
 						);
 	
@@ -708,11 +750,14 @@ class QHM_Migrator
 						$cnt_page++;
 					}
 				}
-			}
-			
+			}	
 		}
 
 		add_settings_error( 'qhm_import', 'qhm_migrated', "{$cnt_page}件の固定ページと、{$cnt_post}件のブログ投稿を読み込みました。", 'updated');
+		
+		if( $this->debug_mode ){
+			exit;
+		}
 	}
 	
 	/**
@@ -759,10 +804,13 @@ class QHM_Migrator
 	*/
 	function add_media_attach( $body )
 	{
+		$this->_echo($body, '===== in add_media_attach ======');
+		
 		$matches = array();
 		preg_match_all('/<img src=".*plugin=ref&amp;page=(.*?)&amp;src=(.*?)"(.*?)\/>/', $body, $matches );
 		
 		$cnt = count( $matches[0] );
+		$this->_echo($cnt, 'match count');
 		
 		$search = array();
 		$replace = array();
@@ -770,8 +818,8 @@ class QHM_Migrator
 		for( $i=0; $i<$cnt; $i++ )
 		{
 			$search[] = $matches[0][$i];
-			$page = $matches[1][$i];
-			$fname = rtrim($matches[2][$i], '/');			
+			$page = rawurldecode( $matches[1][$i] );
+			$fname = rtrim($matches[2][$i], '/');
 			
 			$src_path = $this->get_abspath().'attach/'.strtoupper( bin2hex($page).'_'.bin2hex( urldecode($fname) ) );		
 			
@@ -780,6 +828,8 @@ class QHM_Migrator
 			{
 				$fname = substr(str_shuffle('1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz'), 0, 10) .'.'. pathinfo($fname, PATHINFO_EXTENSION);
 			}
+			
+			$this->_echo($src_path, 'Attach '.$fname);
 
 			$url = $this->add_media($fname, $src_path);
 			$replace[] = '<img src="'.$url.'" title="'.$fname.'">';
@@ -812,7 +862,7 @@ class QHM_Migrator
 			$val = glob(ABSPATH.'/cacheqblog/*.qbc.dat');
 		}		
 		
-		return $val;
+		return is_array( $val ) ? $val : array();
 	}
 	
 	function glob_wiki()
@@ -915,7 +965,14 @@ class QHM_Migrator
 		
 			if( $_SERVER['QUERY_STRING']!='' && strpos($_SERVER['QUERY_STRING'], '=') === false )
 			{
-				$qhm_page_name = $_SERVER['QUERY_STRING'];
+				$qhm_page_name =  	rawurlencode(	
+										mb_convert_encoding( 
+											rawurldecode(
+												$_SERVER['QUERY_STRING'] ),
+												'UTF-8',
+												'EUC-JP, UTF-8'
+											)
+									);
 				
 				if( get_page_by_path( $qhm_page_name ) ){
 					
@@ -932,5 +989,61 @@ class QHM_Migrator
 					exit;
 				}
 			}
-	}	
+	}
+	
+	
+	// 置換用のコールバック関数
+	function callback_fp($matches)
+	{
+		return '"'.site_url().'/"';
+	}
+	
+	function callback_2f($matches)
+	{
+		if( strpos($matches[1], '&') === false ){
+			$n1 = mb_convert_encoding(rawurldecode($match[1]), 'UTF-8', 'EUC-JP, UTF-8');
+			$n2 = mb_convert_encoding(rawurldecode($matches[2]), 'UTF-8', 'EUC-JP, UTF-8');
+			
+			$n1 = rawurlencode($n1);
+			$n2 = rawurlencode($n2);
+			
+			return '"'.site_url()."/{$n1}{$n2}\"";			
+		}
+		else{
+			return '"'.site_url()."/{$match[1]}{$match[2]}\"";
+		}
+		
+	}
+	
+	function callback_std($matches)
+	{
+		if( strpos($matches[1], '&') === false ){
+			$name = mb_convert_encoding( rawurldecode($matches[1]), 'UTF-8', 'EUC-JP, UTF-8');
+			$name = rawurlencode($name);
+			
+			return '"'.site_url()."/{$name}/\"";
+		}
+		else{
+			return 	'"'.site_url()."/{$matches[1]}/\"";
+		}
+	}
+
+	/* どこでも簡単にテストするために、独自のデバッグプリントを用意 */
+	function _echo($var, $msg, $pre="\n", $ext="\n==========\n")
+	{
+		if($this->debug_mode)
+		{
+			echo $msg."\n";
+			echo $pre;
+			
+			if( is_array($var) || is_object($var) )
+			{
+				var_dump($var);
+			}
+			else{
+				echo $var;
+			}
+			echo $ext;
+		}
+	}
 }
