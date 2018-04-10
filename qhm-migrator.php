@@ -1051,7 +1051,7 @@ class QHM_Migrator
 	function fget_contents_wrapper( $file )
 	{
 		//リモートファイルかつ、allow_url_fopen が off の場合 (なるべく、状況を絞り込んだほうがバグが出づらい）
-		if( preg_match('|^(http|https)://|', $file) //すごく適当なurlチェックだけど・・・
+		if( preg_match('|^https?://|', $file) //すごく適当なurlチェックだけど・・・
 			&&  ( ini_get('allow_url_fopen') == 0)
 		)
 		{
