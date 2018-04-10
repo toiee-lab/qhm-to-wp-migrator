@@ -144,7 +144,7 @@ class QHM_Migrator
 				    	$url = trim( $_POST['qm-location-url'] );
 				    	$url = rtrim( $url , '/').'/index_qhm_info.php';
 				    	
-				    	$retval = @file_get_contents($url.'?cmd=test&skey='.$this->remote_skey);
+				    	$retval = $this->fget_contents_wrapper($url.'?cmd=test&skey='.$this->remote_skey);
 				    	
 				    	if($retval == 'true')
 				    	{
@@ -231,8 +231,8 @@ class QHM_Migrator
         {
 	        if( file_exists( ABSPATH.$fname ) )
 	        {
-		        $str_i = file_get_contents( ABSPATH.$fname );
-		        $str_s = file_get_contents( dirname(__FILE__).'/'.$src_file );
+		        $str_i = $this->fget_contents_wrapper( ABSPATH.$fname );
+		        $str_s = $this->fget_contents_wrapper( dirname(__FILE__).'/'.$src_file );
 		        
 		        if($str_i != $str_s)
 		        {
@@ -402,7 +402,7 @@ class QHM_Migrator
 				str_replace(
 						'THIS-IS-MY-SKEY',
 						md5('AUTH_KEY'),
-						file_get_contents( dirname(__FILE__).'/index_qhm_info.txt')
+						$this->fget_contents_wrapper( dirname(__FILE__).'/index_qhm_info.txt')
 					)
 				); ?>
 			</textarea>
@@ -579,7 +579,7 @@ class QHM_Migrator
 				$ftime = $this->get_filetime($file);
 				$import_url = $this->get_site_url().'/index.php?'. rawurlencode( $name );
 								
-				$html = file_get_contents( $import_url );
+				$html = $this->fget_contents_wrapper( $import_url );
 				$html = mb_convert_encoding( $html, "UTF-8", 'EUC-JP, UTF-8');
 												
 				// body だけを取得
@@ -855,7 +855,7 @@ class QHM_Migrator
 	{		
 		if( $this->remote_mode ) //リモートのデータを受け取る
 		{
-			$val = unserialize( @file_get_contents($this->remote_url.'?cmd=glob_cat&skey='.$this->remote_skey) );
+			$val = unserialize( $this->fget_contents_wrapper($this->remote_url.'?cmd=glob_cat&skey='.$this->remote_skey) );
 		}
 		else
 		{
@@ -869,7 +869,7 @@ class QHM_Migrator
 	{
 		if( $this->remote_mode ) //リモートのデータを受け取る
 		{
-			$val = unserialize( @file_get_contents($this->remote_url.'?cmd=glob_wiki&skey='.$this->remote_skey) );
+			$val = unserialize( $this->fget_contents_wrapper($this->remote_url.'?cmd=glob_wiki&skey='.$this->remote_skey) );
 		}
 		else
 		{
@@ -885,11 +885,11 @@ class QHM_Migrator
 		if($this->remote_mode)
 		{
 			$url = $this->remote_url.'?skey='.$this->remote_skey.'&cmd=get_contents&path='.rawurlencode($file);
-			$val = unserialize( @file_get_contents($url) );
+			$val = unserialize( $this->fget_contents_wrapper($url) );
 		}
 		else
 		{
-			$val = file_get_contents($file);
+			$val = $this->fget_contents_wrapper($file);
 		}		
 		return $val;
 	}
@@ -898,7 +898,7 @@ class QHM_Migrator
 		if( $this->remote_mode )
 		{
 			$url = $this->remote_url.'?skey='.$this->remote_skey.'&cmd=get_filetime&path='.rawurlencode($file);
-			$val = file_get_contents( $url );
+			$val = $this->fget_contents_wrapper( $url );
 		}
 		else
 		{
@@ -912,7 +912,7 @@ class QHM_Migrator
 		if( $this->remote_mode )
 		{
 			$url = $this->remote_url.'?skey='.$this->remote_skey.'&cmd=get_abspath';
-			return file_get_contents($url);
+			return $this->fget_contents_wrapper($url);
 		}
 		else
 		{
@@ -1044,6 +1044,34 @@ class QHM_Migrator
 				echo $var;
 			}
 			echo $ext;
+		}
+	}
+	
+	/* allow_url_fopen が使えないサーバーに対応するために、curl を活用する */
+	function fget_contents_wrapper( $file )
+	{
+		//リモートファイルかつ、allow_url_fopen が off の場合 (なるべく、状況を絞り込んだほうがバグが出づらい）
+		if( preg_match('|^(http|https)://|', $file) //すごく適当なurlチェックだけど・・・
+			&&  ( ini_get('allow_url_fopen') == 0)
+		)
+		{
+			$cp = curl_init();
+			curl_setopt($cp, CURLOPT_RETURNTRANSFER, 1); //リダイレクトに対応
+			curl_setopt($cp, CURLOPT_URL, $file); // url をセット
+			curl_setopt($cp, CURLOPT_TIMEOUT, 3); // タイムアウトを3秒に
+			curl_setopt($cp, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);  // user_agent を指定
+
+			$data = curl_exec($cp); //取り込み実行
+
+			curl_close($cp);  //終了処理
+
+			return $data;
+		}
+		else
+		{
+			//ローカルファイルあるいは、allow_url_fopen が on の場合
+			// @ をつけることで、Warning などを無視するようにしている
+			return @file_get_contents($file);
 		}
 	}
 }
