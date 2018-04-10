@@ -1,0 +1,48 @@
+<?php
+	
+define('SKEY', 'THIS-IS-MY-SKEY');	
+
+header("Content-Type: text/plain; charset=utf-8");
+if( isset($_GET['cmd']) && isset($_GET['skey']) && $_GET['skey']==SKEY )
+{
+	$cmd = $_GET['cmd'];
+
+	switch( $cmd )
+	{
+		case 'test': //テスト
+			echo 'true';
+			exit;
+			
+		case 'glob_cat': //ブログのカテゴリデータの取得
+			$ret = glob( dirname(__FILE__).'/cacheqblog/*.qbc.dat');
+			echo serialize($ret);
+			exit;
+			
+		case 'glob_wiki':
+			$ret = glob( dirname(__FILE__).'/wiki/*.txt');
+			echo serialize($ret);
+		
+			exit;
+		case 'get_filetime':
+			echo filemtime( $_GET['path'] );
+			exit;
+			
+		case 'get_contents':  //コンテンツの取得
+			echo serialize( file_get_contents( $_GET['path'] ) );
+			exit;
+			
+		case 'get_abspath': //
+			echo dirname(__FILE__).'/';
+			exit;
+		default:
+			echo 'invalid request cmd';
+			exit;
+	}
+	
+	
+}
+else
+{
+	echo 'invalid request : GET';
+	var_dump($_GET);
+}
