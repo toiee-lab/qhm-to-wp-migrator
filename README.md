@@ -43,6 +43,16 @@ ver0.9以前は、引っ越し中のとき、WordPressとQHMをスイッチす�
 
 QHM v5.3以上、PHP5.6以上にあげてください。方法は、 <https://ensmall.net/> や、<https://help.toiee.jp/article/22-can-not-i-use-qhm> をご覧ください。なお、どちらも公式のサポートはありません。ご自身の責任で行ってください。
 
+- [PHP5環境の最新版](https://github.com/open-qhm/qhm/releases/tag/v5.2.2083)
+- [PHP7環境の最新版](https://github.com/open-qhm/qhm)
+
+アップデートする場合は、上記のファイルからオリジナルファイルが格納されているフォルダ（attach, backup, cache, cacheblog, cacheqhm, counter, diff, swfu/d, swfu/data, trackback, wiki）と設定ファイル（qhm_access.ini.txt, qhm_users.ini.txt, qhm.ini.php) を取り除いたものをアップロードしてください（再帰的アップロード）。
+
+なお、以下に差分を用意していますので、ご利用ください。
+
+- [qhm-v5 差分](https://d.toiee.org/pAIaKXadNz.zip)
+- [qhm-v7.3.0 差分](https://d.toiee.org/nhz35GWwd7.zip)
+
 ### (3) WordPressをダウンロード
 
 WordPressの公式サイトで、最新のWordPressをダウンロードする
