@@ -43,8 +43,10 @@ PHPのバージョンを上げる際、QHMが v5.3未満の方は、QHMがエラ
 
 なお、以下に差分を用意していますので、ご利用ください（※ 予告なく削除されることがあります）
 
-- [qhm-v5 差分](https://d.toiee.org/pAIaKXadNz.zip)
-- [qhm-v7.3.0 差分](https://d.toiee.org/nhz35GWwd7.zip)
+- [qhm-v5 差分](https://d.toiee.org/pAIaKXadNz.zip) : PHP5.6 の場合は、こちらの v5 にアップデートしてください
+- [qhm-v7.3.0 差分](https://d.toiee.org/nhz35GWwd7.zip) : PHP7.x の場合は、こちらの v7.3 にアップデートしてください
+
+※ エラーが起こった場合は、該当箇所を確認して、PHPのバージョンとの文法の違いに注目して、適宜作業してください。
 
 ### (3) WordPressをダウンロード
 
