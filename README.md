@@ -117,6 +117,14 @@ PHPも、WordPressも常に更新し続けましょう。
 
 - [詳細は、こちら](https://github.com/toiee-lab/wordpress-to-qhm-migrator/commits/master)
 
+### ver 0.9.2
+
+_2021/01/25_
+
+- QBlog機能のブログの転送は、自動では行われない不具合を修正（ get_page_by_pathメソッドは、初期値では page しか取得しないため、postも含める必要がありました）
+- WordPress5.6、PHP7.3.5 で動作テストしました（動作します）
+
+
 ### ver 0.9.1
 - 日本語ページの古い添付ファイル（attachプラグインを使って、refプラグインで参照するもの。SWFUではないもの)を読み込めないバグを解決
 
