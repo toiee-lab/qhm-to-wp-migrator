@@ -72,7 +72,11 @@ class QHM_Migrator
 		$this->remote_url = '';
 		$this->remote_skey = md5('AUTH_KEY');
 		
-		
+		// 自動更新を抑制する
+		if ( $migrate_status == 0 ) {
+			add_filter( 'automatic_updater_disabled', '__return_true' );
+		}
+
 		$this->debug_mode = false;
 		if($this->debug_mode){
 			header("Content-Type: text/plain; charset=utf-8");
